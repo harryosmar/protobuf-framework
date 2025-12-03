@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package hello;
+
+option go_package = "github.com/harryosmar/protobuf-go/gen/hello";
+
+import "google/api/annotations.proto";
+
+// HelloRequest is the request message for GetHello
+message HelloRequest {
+  string name = 1;
+}
+
+// HelloResponse is the response message for GetHello
+message HelloResponse {
+  string message = 1;
+}
+
+// HelloService provides greeting functionality
+service HelloService {
+  // GetHello returns a greeting message
+  rpc GetHello(HelloRequest) returns (HelloResponse) {
+    option (google.api.http) = {
+      get: "/v1/hello/{name}"
+    };
+  }
+}
