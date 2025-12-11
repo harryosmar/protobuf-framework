@@ -104,6 +104,38 @@ curl -X POST http://localhost:8080/v1/users \
 curl http://localhost:8080/v1/users/1
 ```
 
+## Architecture
+
+### Request Flow
+
+The server supports both gRPC and HTTP protocols with a unified middleware architecture:
+
+```
+┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐
+│ gRPC Client │───▶│ gRPC Server  │───▶│ Interceptor │───▶│   Service   │
+└─────────────┘    │   :50051     │    │ (RequestID) │    │ (Hello/User)│
+                   └──────────────┘    └─────────────┘    └─────────────┘
+
+┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ HTTP Client │───▶│ HTTP Gateway │───▶│ gRPC Server │───▶│ Interceptor │───▶│   Service   │
+└─────────────┘    │   :8080      │    │   :50051    │    │ (RequestID) │    │ (Hello/User)│
+                   └──────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+### Middleware Strategy
+
+- **Single gRPC Interceptor**: Handles request ID generation for both direct gRPC and HTTP gateway requests
+- **Automatic Propagation**: gRPC-Gateway forwards gRPC metadata to HTTP response headers
+- **Consistent Behavior**: Both protocols receive `X-Request-ID` headers with UUID values
+- **Request Logging**: All requests logged with unique identifiers for tracing
+
+### Benefits
+
+- **DRY Principle**: One middleware handles both protocols
+- **Maintainability**: Single source of truth for request ID logic
+- **Performance**: No duplicate processing for gateway requests
+- **Observability**: Consistent request tracing across all client types
+
 ## Build Commands
 
 ### Available Make Targets

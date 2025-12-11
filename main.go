@@ -9,6 +9,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
+	"github.com/harryosmar/protobuf-go/middleware"
 	"github.com/harryosmar/protobuf-go/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -39,7 +40,9 @@ func runGRPCServer() error {
 		return err
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(middleware.RequestIDInterceptor),
+	)
 	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())
 	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer())
 
