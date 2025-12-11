@@ -1,15 +1,15 @@
-package server
+package service
 
 import (
 	"context"
 	"fmt"
 
-	pb "github.com/harryosmar/protobuf-go/gen"
+	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
 )
 
 // HelloServer implements the HelloService
 type HelloServer struct {
-	pb.UnimplementedHelloServiceServer
+	hellopb.UnimplementedHelloServiceServer
 }
 
 // NewHelloServer creates a new HelloServer instance
@@ -18,9 +18,9 @@ func NewHelloServer() *HelloServer {
 }
 
 // GetHello implements the GetHello RPC method
-func (s *HelloServer) GetHello(ctx context.Context, req *pb.HelloRequest) (*pb.HelloResponse, error) {
+func (s *HelloServer) GetHello(ctx context.Context, req *hellopb.HelloRequest) (*hellopb.HelloResponse, error) {
 	message := fmt.Sprintf("Hello, %s!", req.GetName())
-	return &pb.HelloResponse{
+	return &hellopb.HelloResponse{
 		Message: message,
 	}, nil
 }

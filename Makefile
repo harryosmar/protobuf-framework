@@ -1,12 +1,12 @@
-.PHONY: proto clean run
+.PHONY: proto clean run build
 
 # Generate protobuf code
 proto:
 	@mkdir -p gen
 	protoc -I./proto -I$$HOME/.proto \
-		--go_out=./gen --go_opt=paths=source_relative \
-		--go-grpc_out=./gen --go-grpc_opt=paths=source_relative \
-		--grpc-gateway_out=./gen --grpc-gateway_opt=paths=source_relative \
+		--go_out=. --go_opt=paths=import \
+		--go-grpc_out=. --go-grpc_opt=paths=import \
+		--grpc-gateway_out=. --grpc-gateway_opt=paths=import \
 		proto/*.proto
 	@echo "✓ Proto files generated successfully"
 
@@ -14,6 +14,11 @@ proto:
 clean:
 	rm -rf gen/*.pb.go gen/*.pb.gw.go
 	@echo "✓ Generated files cleaned"
+
+# Build the application
+build:
+	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+	@echo "✓ Application built successfully"
 
 # Run the server
 run:

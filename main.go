@@ -7,8 +7,9 @@ import (
 	"net/http"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	pb "github.com/harryosmar/protobuf-go/gen"
-	"github.com/harryosmar/protobuf-go/server"
+	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
+	userpb "github.com/harryosmar/protobuf-go/gen/user"
+	"github.com/harryosmar/protobuf-go/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -39,7 +40,8 @@ func runGRPCServer() error {
 	}
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterHelloServiceServer(grpcServer, server.NewHelloServer())
+	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())
+	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer())
 
 	log.Printf("gRPC server listening on %s", grpcPort)
 	return grpcServer.Serve(lis)
@@ -53,7 +55,12 @@ func runHTTPGateway() error {
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
-	err := pb.RegisterHelloServiceHandlerFromEndpoint(ctx, mux, "localhost"+grpcPort, opts)
+	err := hellopb.RegisterHelloServiceHandlerFromEndpoint(ctx, mux, "localhost"+grpcPort, opts)
+	if err != nil {
+		return err
+	}
+
+	err = userpb.RegisterUserServiceHandlerFromEndpoint(ctx, mux, "localhost"+grpcPort, opts)
 	if err != nil {
 		return err
 	}
