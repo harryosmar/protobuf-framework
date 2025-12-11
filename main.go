@@ -52,6 +52,7 @@ func runGRPCServer(baseLogger *zap.Logger) error {
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			middleware.RequestIDInterceptor(baseLogger),
+			middleware.NewGlobalRateLimitInterceptor(100, 200), // 100 req/sec, 200 burst
 			middleware.LoggingInterceptor(baseLogger),
 			// Add future interceptors here (auth, metrics, etc.)
 		),
