@@ -52,7 +52,8 @@ func runGRPCServer(baseLogger *zap.Logger) error {
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			middleware.RequestIDInterceptor(baseLogger),
-			// Add future interceptors here (logging, auth, metrics, etc.)
+			middleware.LoggingInterceptor(baseLogger),
+			// Add future interceptors here (auth, metrics, etc.)
 		),
 	)
 	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())

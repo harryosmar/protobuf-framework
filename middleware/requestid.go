@@ -49,20 +49,11 @@ func RequestIDInterceptor(baseLogger *zap.Logger) grpc.UnaryServerInterceptor {
 		outgoingMD := metadata.Pairs(RequestIDHeader, requestID)
 		ctx = metadata.NewOutgoingContext(ctx, outgoingMD)
 
-		// Log the request with structured logging
-		requestLogger.Info("gRPC request started", zap.String("method", info.FullMethod))
-
 		// Call the handler
 		resp, err := handler(ctx, req)
 
 		// Set response header
 		grpc.SetHeader(ctx, metadata.Pairs(RequestIDHeader, requestID))
-
-		if err != nil {
-			requestLogger.Error("gRPC request failed", zap.String("method", info.FullMethod), zap.Error(err))
-		} else {
-			requestLogger.Info("gRPC request completed", zap.String("method", info.FullMethod))
-		}
 
 		return resp, err
 	}
