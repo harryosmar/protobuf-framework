@@ -10,6 +10,7 @@ import (
 	"github.com/harryosmar/protobuf-go/config"
 	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
+	"github.com/harryosmar/protobuf-go/handlers"
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/middleware"
 	"github.com/harryosmar/protobuf-go/service"
@@ -106,6 +107,19 @@ func runHTTPGateway(cfg *config.Config, baseLogger *zap.Logger) error {
 		return err
 	}
 
+	// Create a new HTTP mux for additional endpoints
+	httpMux := http.NewServeMux()
+
+	// Register gRPC gateway
+	httpMux.Handle("/", mux)
+
+	// Register health endpoint
+	httpMux.HandleFunc("/health", handlers.HealthHandler(cfg))
+
+	// Register Swagger endpoints
+	httpMux.HandleFunc("/docs", handlers.SwaggerUIHandler())
+	httpMux.HandleFunc("/docs/swagger.json", handlers.SwaggerHandler())
+
 	baseLogger.Info("HTTP gateway listening", zap.String("port", cfg.HTTPPort))
-	return http.ListenAndServe(cfg.HTTPPort, mux)
+	return http.ListenAndServe(cfg.HTTPPort, httpMux)
 }

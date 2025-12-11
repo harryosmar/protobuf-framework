@@ -7,6 +7,9 @@
 # Generated protobuf files
 gen/
 
+# Generated Swagger/OpenAPI files
+docs/
+
 # Go build artifacts
 *.exe
 *.exe~

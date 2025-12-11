@@ -49,6 +49,13 @@ Required tools:
 - protoc-gen-go
 - protoc-gen-go-grpc
 - protoc-gen-grpc-gateway
+- protoc-gen-openapiv2 (for Swagger generation)
+
+### Install Swagger Generator
+
+```bash
+go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
+```
 
 ## Running the Server
 
@@ -104,6 +111,31 @@ curl -X POST http://localhost:8080/v1/users \
 curl http://localhost:8080/v1/users/1
 ```
 
+### Additional Endpoints
+
+**Health Check:**
+```bash
+curl http://localhost:8080/health
+```
+
+Response:
+```json
+{
+  "service_name": "protobuf-go-server",
+  "version": "v1.0.0",
+  "status": "healthy"
+}
+```
+
+**Swagger Documentation:**
+- **Swagger UI**: `http://localhost:8080/docs`
+- **Swagger JSON**: `http://localhost:8080/docs/swagger.json`
+
+Generate Swagger documentation:
+```bash
+make swagger
+```
+
 ## Architecture
 
 ### Request Flow
@@ -142,6 +174,7 @@ The server supports both gRPC and HTTP protocols with a unified middleware archi
 
 ```bash
 make proto   # Generate protobuf files from .proto sources
+make swagger # Generate Swagger/OpenAPI documentation
 make build   # Build static binary for production
 make clean   # Remove generated files
 make run     # Run development server
