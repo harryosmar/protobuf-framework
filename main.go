@@ -9,8 +9,10 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
+	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/middleware"
 	"github.com/harryosmar/protobuf-go/service"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -21,36 +23,46 @@ const (
 )
 
 func main() {
+	// Initialize logger
+	baseLogger, err := logger.InitLogger()
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer baseLogger.Sync()
+
 	// Start gRPC server in a goroutine
 	go func() {
-		if err := runGRPCServer(); err != nil {
-			log.Fatalf("Failed to run gRPC server: %v", err)
+		if err := runGRPCServer(baseLogger); err != nil {
+			baseLogger.Fatal("Failed to run gRPC server", zap.Error(err))
 		}
 	}()
 
 	// Start HTTP gateway server
-	if err := runHTTPGateway(); err != nil {
-		log.Fatalf("Failed to run HTTP gateway: %v", err)
+	if err := runHTTPGateway(baseLogger); err != nil {
+		baseLogger.Fatal("Failed to run HTTP gateway", zap.Error(err))
 	}
 }
 
-func runGRPCServer() error {
+func runGRPCServer(baseLogger *zap.Logger) error {
 	lis, err := net.Listen("tcp", grpcPort)
 	if err != nil {
 		return err
 	}
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(middleware.RequestIDInterceptor),
+		grpc.ChainUnaryInterceptor(
+			middleware.RequestIDInterceptor(baseLogger),
+			// Add future interceptors here (logging, auth, metrics, etc.)
+		),
 	)
 	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())
 	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer())
 
-	log.Printf("gRPC server listening on %s", grpcPort)
+	baseLogger.Info("gRPC server listening", zap.String("port", grpcPort))
 	return grpcServer.Serve(lis)
 }
 
-func runHTTPGateway() error {
+func runHTTPGateway(baseLogger *zap.Logger) error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -68,6 +80,6 @@ func runHTTPGateway() error {
 		return err
 	}
 
-	log.Printf("HTTP gateway listening on %s", httpPort)
+	baseLogger.Info("HTTP gateway listening", zap.String("port", httpPort))
 	return http.ListenAndServe(httpPort, mux)
 }

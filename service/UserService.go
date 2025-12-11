@@ -6,6 +6,8 @@ import (
 	"time"
 
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
+	"github.com/harryosmar/protobuf-go/logger"
+	"go.uber.org/zap"
 )
 
 // UserServer implements the UserService
@@ -25,6 +27,10 @@ func NewUserServer() *UserServer {
 
 // CreateUser implements the CreateUser RPC method
 func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
+	// Get logger with request ID from context
+	log := logger.FromContext(ctx)
+	log.Info("UserService.CreateUser called", zap.String("name", req.User.Name), zap.String("email", req.User.Email))
+
 	now := time.Now().Format(time.RFC3339)
 
 	user := &userpb.UserEntity{
@@ -38,6 +44,7 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
 	s.users[s.nextID] = user
 	s.nextID++
 
+	log.Info("UserService.CreateUser created user", zap.Int64("user_id", user.Id))
 	return &userpb.CreateUserResponse{
 		User: user,
 	}, nil
@@ -45,11 +52,17 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
 
 // GetUser implements the GetUser RPC method
 func (s *UserServer) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
+	// Get logger with request ID from context
+	log := logger.FromContext(ctx)
+	log.Info("UserService.GetUser called", zap.Int64("user_id", req.Id))
+
 	user, exists := s.users[req.Id]
 	if !exists {
+		log.Warn("UserService.GetUser user not found", zap.Int64("user_id", req.Id))
 		return nil, fmt.Errorf("user with ID %d not found", req.Id)
 	}
 
+	log.Info("UserService.GetUser found user", zap.String("user_name", user.Name))
 	return &userpb.GetUserResponse{
 		User: user,
 	}, nil
