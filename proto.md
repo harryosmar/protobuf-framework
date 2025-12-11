@@ -77,71 +77,13 @@ Generates: `hello.pb.gw.go`
 
 ## Generate Script
 
-Create a shell script to automate code generation:
-
-### `scripts/generate.sh`
-
 ```bash
-#!/bin/bash
-
-# Exit on error
-set -e
-
-# Create output directory if it doesn't exist
-mkdir -p gen
-
 # Generate code from all proto files
 protoc -I./proto -I$HOME/.proto \
   --go_out=./gen --go_opt=paths=source_relative \
   --go-grpc_out=./gen --go-grpc_opt=paths=source_relative \
   --grpc-gateway_out=./gen --grpc-gateway_opt=paths=source_relative \
   proto/*.proto
-
-echo "✓ Proto files generated successfully"
-```
-
-Make it executable:
-
-```bash
-chmod +x scripts/generate.sh
-```
-
-Run it:
-
-```bash
-./scripts/generate.sh
-```
-
-## Makefile
-
-Alternatively, use a Makefile:
-
-### `Makefile`
-
-```makefile
-.PHONY: proto clean
-
-# Generate protobuf code
-proto:
-	@mkdir -p gen
-	protoc -I./proto -I$$HOME/.proto \
-		--go_out=./gen --go_opt=paths=source_relative \
-		--go-grpc_out=./gen --go-grpc_opt=paths=source_relative \
-		--grpc-gateway_out=./gen --grpc-gateway_opt=paths=source_relative \
-		proto/*.proto
-	@echo "✓ Proto files generated successfully"
-
-# Clean generated files
-clean:
-	rm -rf gen/*.pb.go gen/*.pb.gw.go
-	@echo "✓ Generated files cleaned"
-```
-
-Run with:
-
-```bash
-make proto    # Generate code
-make clean    # Remove generated files
 ```
 
 ## Common Options
