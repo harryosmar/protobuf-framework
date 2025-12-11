@@ -7,6 +7,7 @@ toolchain go1.24.11
 require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3
+	github.com/kelseyhightower/envconfig v1.4.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/time v0.14.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217

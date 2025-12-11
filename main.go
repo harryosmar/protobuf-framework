@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/harryosmar/protobuf-go/config"
 	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/logger"
@@ -17,12 +18,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-const (
-	grpcPort = ":50051"
-	httpPort = ":8080"
-)
-
 func main() {
+	// Load configuration
+	cfg := config.Get()
+
 	// Initialize logger
 	baseLogger, err := logger.InitLogger()
 	if err != nil {
@@ -30,41 +29,66 @@ func main() {
 	}
 	defer baseLogger.Sync()
 
+	baseLogger.Info("Starting server",
+		zap.String("app_name", cfg.AppName),
+		zap.String("app_version", cfg.AppVersion),
+		zap.String("grpc_port", cfg.GRPCPort),
+		zap.String("http_port", cfg.HTTPPort),
+	)
+
 	// Start gRPC server in a goroutine
 	go func() {
-		if err := runGRPCServer(baseLogger); err != nil {
+		if err := runGRPCServer(cfg, baseLogger); err != nil {
 			baseLogger.Fatal("Failed to run gRPC server", zap.Error(err))
 		}
 	}()
 
 	// Start HTTP gateway server
-	if err := runHTTPGateway(baseLogger); err != nil {
+	if err := runHTTPGateway(cfg, baseLogger); err != nil {
 		baseLogger.Fatal("Failed to run HTTP gateway", zap.Error(err))
 	}
 }
 
-func runGRPCServer(baseLogger *zap.Logger) error {
-	lis, err := net.Listen("tcp", grpcPort)
+func runGRPCServer(cfg *config.Config, baseLogger *zap.Logger) error {
+	lis, err := net.Listen("tcp", cfg.GRPCPort)
 	if err != nil {
 		return err
 	}
 
+	// Get rate limiting configuration
+	reqPerSec, burstSize, strategy := cfg.GetRateLimitConfig()
+
+	var rateLimitInterceptor grpc.UnaryServerInterceptor
+	if cfg.RateLimitEnabled {
+		if strategy == "per-method" {
+			rateLimitInterceptor = middleware.NewPerMethodRateLimitInterceptor(reqPerSec, burstSize)
+		} else {
+			rateLimitInterceptor = middleware.NewGlobalRateLimitInterceptor(reqPerSec, burstSize)
+		}
+	}
+
+	// Build interceptor chain
+	interceptors := []grpc.UnaryServerInterceptor{
+		middleware.RequestIDInterceptor(baseLogger),
+	}
+
+	if cfg.RateLimitEnabled {
+		interceptors = append(interceptors, rateLimitInterceptor)
+	}
+
+	interceptors = append(interceptors, middleware.LoggingInterceptor(baseLogger))
+
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			middleware.RequestIDInterceptor(baseLogger),
-			middleware.NewGlobalRateLimitInterceptor(100, 200), // 100 req/sec, 200 burst
-			middleware.LoggingInterceptor(baseLogger),
-			// Add future interceptors here (auth, metrics, etc.)
-		),
+		grpc.ChainUnaryInterceptor(interceptors...),
 	)
 	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())
 	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer())
 
-	baseLogger.Info("gRPC server listening", zap.String("port", grpcPort))
+	baseLogger.Info("gRPC server listening", zap.String("port", cfg.GRPCPort))
 	return grpcServer.Serve(lis)
 }
 
-func runHTTPGateway(baseLogger *zap.Logger) error {
+func runHTTPGateway(cfg *config.Config, baseLogger *zap.Logger) error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -72,16 +96,16 @@ func runHTTPGateway(baseLogger *zap.Logger) error {
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
-	err := hellopb.RegisterHelloServiceHandlerFromEndpoint(ctx, mux, "localhost"+grpcPort, opts)
+	err := hellopb.RegisterHelloServiceHandlerFromEndpoint(ctx, mux, "localhost"+cfg.GRPCPort, opts)
 	if err != nil {
 		return err
 	}
 
-	err = userpb.RegisterUserServiceHandlerFromEndpoint(ctx, mux, "localhost"+grpcPort, opts)
+	err = userpb.RegisterUserServiceHandlerFromEndpoint(ctx, mux, "localhost"+cfg.GRPCPort, opts)
 	if err != nil {
 		return err
 	}
 
-	baseLogger.Info("HTTP gateway listening", zap.String("port", httpPort))
-	return http.ListenAndServe(httpPort, mux)
+	baseLogger.Info("HTTP gateway listening", zap.String("port", cfg.HTTPPort))
+	return http.ListenAndServe(cfg.HTTPPort, mux)
 }
