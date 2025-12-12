@@ -13,6 +13,12 @@ type Config struct {
 	GRPCPort string `envconfig:"GRPC_PORT" default:":50051"`
 	HTTPPort string `envconfig:"HTTP_PORT" default:":8080"`
 
+	// Database configuration
+	DatabaseURL     string `envconfig:"DATABASE_URL" default:"root:password@tcp(localhost:3306)/protobuf_go?charset=utf8mb4&parseTime=True&loc=Local"`
+	DatabaseMaxIdle int    `envconfig:"DATABASE_MAX_IDLE" default:"10"`
+	DatabaseMaxOpen int    `envconfig:"DATABASE_MAX_OPEN" default:"100"`
+	DatabaseMaxLife int    `envconfig:"DATABASE_MAX_LIFE" default:"3600"` // seconds
+
 	// Rate limiting configuration
 	RateLimitEnabled        bool   `envconfig:"RATE_LIMIT_ENABLED" default:"true"`
 	RateLimitRequestsPerSec int    `envconfig:"RATE_LIMIT_REQUESTS_PER_SEC" default:"100"`

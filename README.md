@@ -51,10 +51,14 @@ Required tools:
 - protoc-gen-grpc-gateway
 - protoc-gen-openapiv2 (for Swagger generation)
 
-### Install Swagger Generator
+### Install Dependencies
 
 ```bash
+# Install Swagger Generator
 go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
+
+# Install GORM and MySQL driver
+go get -u gorm.io/gorm gorm.io/driver/mysql
 ```
 
 ## Running the Server

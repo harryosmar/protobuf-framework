@@ -5,6 +5,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/harryosmar/protobuf-go/config"
@@ -17,6 +21,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 func main() {
@@ -37,20 +42,57 @@ func main() {
 		zap.String("http_port", cfg.HTTPPort),
 	)
 
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Channel to listen for interrupt signal to trigger shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 	// Start gRPC server in a goroutine
+	grpcDone := make(chan error, 1)
 	go func() {
-		if err := runGRPCServer(cfg, baseLogger); err != nil {
-			baseLogger.Fatal("Failed to run gRPC server", zap.Error(err))
-		}
+		grpcDone <- runGRPCServer(ctx, cfg, baseLogger)
 	}()
 
-	// Start HTTP gateway server
-	if err := runHTTPGateway(cfg, baseLogger); err != nil {
-		baseLogger.Fatal("Failed to run HTTP gateway", zap.Error(err))
+	// Start HTTP gateway server in a goroutine
+	httpDone := make(chan error, 1)
+	go func() {
+		httpDone <- runHTTPGateway(cfg, baseLogger)
+	}()
+
+	// Wait for interrupt signal or server error
+	select {
+	case <-quit:
+		baseLogger.Info("Shutdown signal received")
+	case err := <-grpcDone:
+		if err != nil {
+			baseLogger.Error("gRPC server error", zap.Error(err))
+		}
+	case err := <-httpDone:
+		if err != nil {
+			baseLogger.Error("HTTP server error", zap.Error(err))
+		}
+	}
+
+	// Graceful shutdown
+	baseLogger.Info("Shutting down servers...")
+	cancel()
+
+	// Give servers time to shutdown gracefully
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	select {
+	case <-shutdownCtx.Done():
+		baseLogger.Warn("Shutdown timeout exceeded")
+	case <-time.After(5 * time.Second):
+		baseLogger.Info("Servers shutdown completed")
 	}
 }
 
-func runGRPCServer(cfg *config.Config, baseLogger *zap.Logger) error {
+func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logger) error {
 	lis, err := net.Listen("tcp", cfg.GRPCPort)
 	if err != nil {
 		return err
@@ -79,13 +121,37 @@ func runGRPCServer(cfg *config.Config, baseLogger *zap.Logger) error {
 
 	interceptors = append(interceptors, middleware.LoggingInterceptor(baseLogger))
 
+	// Production-ready gRPC server with keepalive and limits
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(interceptors...),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle:     15 * time.Second,
+			MaxConnectionAge:      30 * time.Second,
+			MaxConnectionAgeGrace: 5 * time.Second,
+			Time:                  5 * time.Second,
+			Timeout:               1 * time.Second,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             5 * time.Second,
+			PermitWithoutStream: false,
+		}),
+		grpc.MaxRecvMsgSize(4*1024*1024), // 4MB
+		grpc.MaxSendMsgSize(4*1024*1024), // 4MB
+		grpc.MaxConcurrentStreams(1000),
 	)
+
 	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())
 	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer())
 
 	baseLogger.Info("gRPC server listening", zap.String("port", cfg.GRPCPort))
+
+	// Graceful shutdown handling
+	go func() {
+		<-ctx.Done()
+		baseLogger.Info("Gracefully stopping gRPC server...")
+		grpcServer.GracefulStop()
+	}()
+
 	return grpcServer.Serve(lis)
 }
 
