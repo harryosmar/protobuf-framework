@@ -2,24 +2,29 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/models"
+	"github.com/harryosmar/protobuf-go/repository"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// UserServer implements the UserService with database persistence
+// UserServer implements the UserService with repository pattern
 type UserServer struct {
 	userpb.UnimplementedUserServiceServer
+	userRepo repository.UserRepository
 }
 
-// NewUserServer creates a new UserServer instance
-func NewUserServer() *UserServer {
-	return &UserServer{}
+// NewUserServer creates a new UserServer instance with dependency injection
+func NewUserServer(userRepo repository.UserRepository) *UserServer {
+	return &UserServer{
+		userRepo: userRepo,
+	}
 }
 
 // CreateUser implements the CreateUser RPC method
@@ -29,33 +34,42 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
 	log.Info("UserService.CreateUser called", zap.String("name", req.User.Name), zap.String("email", req.User.Email))
 
 	// Input validation
-	if req.User == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "user data is required")
-	}
-	if strings.TrimSpace(req.User.Name) == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "user name is required")
-	}
-	if strings.TrimSpace(req.User.Email) == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "user email is required")
+	if err := s.validateCreateUserRequest(req); err != nil {
+		return nil, err
 	}
 
 	// Create user model from DTO
 	user := models.FromProtoDTO(req.User)
 
-	// Save to database (placeholder - will need actual DB connection)
-	// For now, simulate database save with proper error handling
-	if user.Email == "test@error.com" {
-		log.Error("Failed to create user", zap.String("email", user.Email))
+	// Save to database using repository
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		log.Error("Failed to create user", zap.String("email", user.Email), zap.Error(err))
+
+		// Handle repository-specific errors
+		if errors.Is(err, repository.ErrUserEmailExists) {
+			return nil, status.Errorf(codes.AlreadyExists, "user with email %s already exists", user.Email)
+		}
 		return nil, status.Errorf(codes.Internal, "failed to create user")
 	}
-
-	// Simulate auto-increment ID
-	user.ID = 1 // This would be handled by database auto-increment
 
 	log.Info("UserService.CreateUser created user", zap.Int64("user_id", user.ID))
 	return &userpb.CreateUserResponse{
 		User: user.ToProto(),
 	}, nil
+}
+
+// validateCreateUserRequest validates the create user request
+func (s *UserServer) validateCreateUserRequest(req *userpb.CreateUserRequest) error {
+	if req.User == nil {
+		return status.Errorf(codes.InvalidArgument, "user data is required")
+	}
+	if strings.TrimSpace(req.User.Name) == "" {
+		return status.Errorf(codes.InvalidArgument, "user name is required")
+	}
+	if strings.TrimSpace(req.User.Email) == "" {
+		return status.Errorf(codes.InvalidArgument, "user email is required")
+	}
+	return nil
 }
 
 // GetUser implements the GetUser RPC method
@@ -69,18 +83,15 @@ func (s *UserServer) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "user ID must be positive")
 	}
 
-	// TODO: Replace with actual database query
-	// For now, simulate database lookup with proper error handling
-	if req.Id == 999 {
-		log.Warn("UserService.GetUser user not found", zap.Int64("user_id", req.Id))
-		return nil, status.Errorf(codes.NotFound, "user with ID %d not found", req.Id)
-	}
-
-	// Simulate found user
-	user := &models.User{
-		ID:    req.Id,
-		Name:  "John Doe",
-		Email: "john@example.com",
+	// Query database for user using repository
+	user, err := s.userRepo.GetByID(ctx, req.Id)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			log.Warn("UserService.GetUser user not found", zap.Int64("user_id", req.Id))
+			return nil, status.Errorf(codes.NotFound, "user with ID %d not found", req.Id)
+		}
+		log.Error("Failed to query user", zap.Int64("user_id", req.Id), zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to retrieve user")
 	}
 
 	log.Info("UserService.GetUser found user", zap.String("user_name", user.Name))

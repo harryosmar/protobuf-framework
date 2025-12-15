@@ -11,11 +11,8 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// DB holds the database connection
-var DB *gorm.DB
-
-// InitDatabase initializes the database connection with connection pooling
-func InitDatabase(cfg *config.Config, zapLogger *zap.Logger) error {
+// NewDatabase creates and returns a new database connection with connection pooling
+func NewDatabase(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 	// Configure GORM logger to use Zap
 	gormLogger := logger.New(
 		&GormZapWriter{logger: zapLogger},
@@ -32,13 +29,13 @@ func InitDatabase(cfg *config.Config, zapLogger *zap.Logger) error {
 		Logger: gormLogger,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	// Get underlying sql.DB to configure connection pool
 	sqlDB, err := db.DB()
 	if err != nil {
-		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
 
 	// Configure connection pool for high-traffic
@@ -48,17 +45,16 @@ func InitDatabase(cfg *config.Config, zapLogger *zap.Logger) error {
 
 	// Test the connection
 	if err := sqlDB.Ping(); err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	DB = db
 	zapLogger.Info("Database connected successfully",
 		zap.String("max_idle", fmt.Sprintf("%d", cfg.DatabaseMaxIdle)),
 		zap.String("max_open", fmt.Sprintf("%d", cfg.DatabaseMaxOpen)),
 		zap.String("max_lifetime", fmt.Sprintf("%ds", cfg.DatabaseMaxLife)),
 	)
 
-	return nil
+	return db, nil
 }
 
 // GormZapWriter implements GORM's logger interface using Zap
@@ -71,9 +67,9 @@ func (g *GormZapWriter) Printf(format string, args ...interface{}) {
 }
 
 // CloseDatabase closes the database connection
-func CloseDatabase() error {
-	if DB != nil {
-		sqlDB, err := DB.DB()
+func CloseDatabase(db *gorm.DB) error {
+	if db != nil {
+		sqlDB, err := db.DB()
 		if err != nil {
 			return err
 		}

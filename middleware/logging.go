@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/harryosmar/protobuf-go/logger"
@@ -20,15 +21,28 @@ func LoggingInterceptor(baseLogger *zap.Logger) grpc.UnaryServerInterceptor {
 		// Get logger from context (should have request_id from RequestIDInterceptor)
 		log := logger.FromContext(ctx)
 
-		// Serialize request payload
-		reqPayload, _ := json.Marshal(req)
+		// Conditionally serialize request payload for high-traffic optimization
+		var reqPayload []byte
+		var reqFields []zap.Field
+
+		// Only log payload for non-high-frequency methods or small payloads
+		if shouldLogPayload(info.FullMethod, req) {
+			reqPayload, _ = json.Marshal(req)
+			reqFields = []zap.Field{
+				zap.String("method", info.FullMethod),
+				zap.ByteString("request_payload", reqPayload),
+				zap.Time("start_time", startTime),
+			}
+		} else {
+			reqFields = []zap.Field{
+				zap.String("method", info.FullMethod),
+				zap.String("payload_size", getPayloadSize(req)),
+				zap.Time("start_time", startTime),
+			}
+		}
 
 		// Log request start
-		log.Info("gRPC request received",
-			zap.String("method", info.FullMethod),
-			zap.ByteString("request_payload", reqPayload),
-			zap.Time("start_time", startTime),
-		)
+		log.Info("gRPC request received", reqFields...)
 
 		// Call the handler
 		resp, err := handler(ctx, req)
@@ -80,5 +94,44 @@ func LoggingInterceptor(baseLogger *zap.Logger) grpc.UnaryServerInterceptor {
 		}
 
 		return resp, err
+	}
+}
+
+// shouldLogPayload determines if we should log the full payload based on method and size
+func shouldLogPayload(method string, payload interface{}) bool {
+	// Skip payload logging for high-frequency methods
+	highFrequencyMethods := []string{
+		"/grpc.health.v1.Health/Check",
+		"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo",
+	}
+
+	for _, hfMethod := range highFrequencyMethods {
+		if method == hfMethod {
+			return false
+		}
+	}
+
+	// Check payload size (rough estimation)
+	payloadStr := getPayloadSize(payload)
+	if len(payloadStr) > 1000 { // If estimated size > 1KB, skip full payload
+		return false
+	}
+
+	return true
+}
+
+// getPayloadSize returns a string representation of payload size
+func getPayloadSize(payload interface{}) string {
+	if payload == nil {
+		return "0B"
+	}
+
+	// Quick size estimation without full marshaling
+	switch v := payload.(type) {
+	case string:
+		return fmt.Sprintf("%dB", len(v))
+	default:
+		// For other types, use a rough estimation
+		return "~unknown"
 	}
 }

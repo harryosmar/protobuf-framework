@@ -135,9 +135,33 @@ Response:
 - **Swagger UI**: `http://localhost:8080/docs`
 - **Swagger JSON**: `http://localhost:8080/docs/swagger.json`
 
+**Prometheus Metrics:**
+- **Metrics endpoint**: `http://localhost:8080/metrics`
+
 Generate Swagger documentation:
 ```bash
 make swagger
+```
+
+### Database Setup
+
+The application uses MySQL with GORM for persistence. Configure using environment variables:
+
+```bash
+# Database configuration
+export DATABASE_URL="root:password@tcp(localhost:3306)/protobuf_go?charset=utf8mb4&parseTime=True&loc=Local"
+export DATABASE_MAX_IDLE=10
+export DATABASE_MAX_OPEN=100
+export DATABASE_MAX_LIFE=3600
+```
+
+**Docker MySQL Setup:**
+```bash
+docker run --name mysql-protobuf \
+  -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=protobuf_go \
+  -p 3306:3306 \
+  -d mysql:8.0
 ```
 
 ## Architecture

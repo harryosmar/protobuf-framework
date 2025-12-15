@@ -102,6 +102,9 @@ func RateLimitInterceptor(rateLimiter *RateLimiter) grpc.UnaryServerInterceptor 
 				zap.Int("burst_size", rateLimiter.config.BurstSize),
 			)
 
+			// Record rate limit exceeded metric
+			RecordRateLimitExceeded(info.FullMethod, key)
+
 			// Return rate limit exceeded error
 			return nil, status.Errorf(codes.ResourceExhausted,
 				"Rate limit exceeded. Maximum %d requests per second allowed.",

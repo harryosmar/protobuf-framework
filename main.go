@@ -12,12 +12,16 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/harryosmar/protobuf-go/config"
+	"github.com/harryosmar/protobuf-go/database"
 	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/handlers"
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/middleware"
+	"github.com/harryosmar/protobuf-go/models"
+	"github.com/harryosmar/protobuf-go/repository"
 	"github.com/harryosmar/protobuf-go/service"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -34,6 +38,25 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer baseLogger.Sync()
+
+	// Initialize database with new pattern
+	db, err := database.NewDatabase(cfg, baseLogger)
+	if err != nil {
+		baseLogger.Fatal("Failed to initialize database", zap.Error(err))
+	}
+	defer func() {
+		if err := database.CloseDatabase(db); err != nil {
+			baseLogger.Error("Failed to close database", zap.Error(err))
+		}
+	}()
+
+	// Auto-migrate database schema
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		baseLogger.Fatal("Failed to migrate database", zap.Error(err))
+	}
+
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(db)
 
 	baseLogger.Info("Starting server",
 		zap.String("app_name", cfg.AppName),
@@ -53,7 +76,7 @@ func main() {
 	// Start gRPC server in a goroutine
 	grpcDone := make(chan error, 1)
 	go func() {
-		grpcDone <- runGRPCServer(ctx, cfg, baseLogger)
+		grpcDone <- runGRPCServer(ctx, cfg, baseLogger, userRepo)
 	}()
 
 	// Start HTTP gateway server in a goroutine
@@ -92,7 +115,7 @@ func main() {
 	}
 }
 
-func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logger) error {
+func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logger, userRepo repository.UserRepository) error {
 	lis, err := net.Listen("tcp", cfg.GRPCPort)
 	if err != nil {
 		return err
@@ -113,6 +136,7 @@ func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logg
 	// Build interceptor chain
 	interceptors := []grpc.UnaryServerInterceptor{
 		middleware.RequestIDInterceptor(baseLogger),
+		middleware.MetricsInterceptor(), // Add metrics collection
 	}
 
 	if cfg.RateLimitEnabled {
@@ -141,7 +165,7 @@ func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logg
 	)
 
 	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())
-	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer())
+	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer(userRepo))
 
 	baseLogger.Info("gRPC server listening", zap.String("port", cfg.GRPCPort))
 
@@ -185,6 +209,9 @@ func runHTTPGateway(cfg *config.Config, baseLogger *zap.Logger) error {
 	// Register Swagger endpoints
 	httpMux.HandleFunc("/docs", handlers.SwaggerUIHandler())
 	httpMux.HandleFunc("/docs/swagger.json", handlers.SwaggerHandler())
+
+	// Register Prometheus metrics endpoint
+	httpMux.Handle("/metrics", promhttp.Handler())
 
 	baseLogger.Info("HTTP gateway listening", zap.String("port", cfg.HTTPPort))
 	return http.ListenAndServe(cfg.HTTPPort, httpMux)
