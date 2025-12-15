@@ -3,12 +3,14 @@
 # Generate protobuf code
 proto:
 	@mkdir -p gen
-	protoc -I./proto -I$$HOME/.proto \
+	@export PATH="/usr/local/go/bin:$$PATH" && \
+	protoc -I./proto -I./third_party -I$$HOME/.proto \
 		--go_out=. --go_opt=paths=import \
 		--go-grpc_out=. --go-grpc_opt=paths=import \
 		--grpc-gateway_out=. --grpc-gateway_opt=paths=import \
+		--validate_out="lang=go:." \
 		proto/*.proto
-	@echo "✓ Proto files generated successfully"
+	@echo "✓ Proto files generated successfully with validation"
 
 # Generate Swagger/OpenAPI documentation
 swagger:

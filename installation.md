@@ -1,11 +1,12 @@
 # Installation Guide
 
-This guide covers the installation of Protocol Buffers (protobuf) and gRPC tools for Go development.
+This guide covers the installation of Protocol Buffers (protobuf), gRPC tools, and validation tools for Go development.
 
 ## Prerequisites
 
 - Go 1.24.0 or later
 - Protocol Buffers compiler (protoc)
+- Git (for downloading proto dependencies)
 
 ## Installation Steps
 
@@ -81,7 +82,59 @@ This plugin generates OpenAPI v2 (Swagger) documentation:
 go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
 ```
 
-### 6. Setup Google API Annotations Proto Files
+### 6. Install protoc-gen-validate
+
+This plugin generates validation code from proto validation annotations:
+
+```bash
+# Fix Go toolchain version mismatch if needed
+export PATH="/usr/local/go/bin:$PATH"
+
+# Install protoc-gen-validate
+go install github.com/envoyproxy/protoc-gen-validate@v1.0.4
+```
+
+Verify the installation:
+
+```bash
+protoc-gen-validate --version
+```
+
+**Troubleshooting Go Toolchain Mismatch:**
+
+If you encounter errors like "compile: version does not match go tool version", this is due to Go toolchain version mismatch. Fix it by:
+
+1. **Use system Go installation:**
+   ```bash
+   export PATH="/usr/local/go/bin:$PATH"
+   go install github.com/envoyproxy/protoc-gen-validate@v1.0.4
+   ```
+
+2. **Verify proper Go version:**
+   ```bash
+   which go  # Should show /usr/local/go/bin/go
+   go version  # Should match your system Go version
+   ```
+
+3. **Update your shell profile:**
+   ```bash
+   echo 'export PATH="/usr/local/go/bin:$PATH"' >> ~/.zshrc
+   source ~/.zshrc
+   ```
+
+### 7. Setup Validation Proto Files
+
+Download the validate.proto file for protoc-gen-validate annotations:
+
+```bash
+# Create third_party directory for validation proto
+mkdir -p third_party/validate
+
+# Download validate.proto from protoc-gen-validate repository
+curl -o third_party/validate/validate.proto https://raw.githubusercontent.com/envoyproxy/protoc-gen-validate/v1.0.4/validate/validate.proto
+```
+
+### 8. Setup Google API Annotations Proto Files
 
 To use `import "google/api/annotations.proto"` in your proto files, set up a shared proto directory in your home folder that can be used across all projects.
 
@@ -120,13 +173,18 @@ The `~/.proto/google/api/` directory now contains:
 - `http.proto` - HTTP configuration
 - `httpbody.proto` - HTTP body definitions
 
-When running `protoc` in any project, include the shared proto directory in your proto path:
+When running `protoc` in any project, include the shared proto directory and third_party in your proto path:
 
 ```bash
-protoc -I. -I$HOME/.proto \
+# Ensure proper Go toolchain is used
+export PATH="/usr/local/go/bin:$PATH"
+
+# Generate protobuf code with validation
+protoc -I. -I./third_party -I$HOME/.proto \
   --go_out=. --go_opt=paths=source_relative \
   --go-grpc_out=. --go-grpc_opt=paths=source_relative \
   --grpc-gateway_out=. --grpc-gateway_opt=paths=source_relative \
+  --validate_out="lang=go:." \
   your_service.proto
 ```
 
@@ -149,6 +207,7 @@ Current compatible versions:
 - **protoc-gen-go-grpc**: v1.6.0
 - **protoc-gen-grpc-gateway**: v2.27.3
 - **protoc-gen-openapiv2**: v2.27.3
+- **protoc-gen-validate**: v1.0.4
 
 ## Compatibility
 
@@ -156,11 +215,31 @@ All installed versions are compatible and work together seamlessly for generatin
 - Protocol Buffer message definitions (Go structs)
 - gRPC service implementations
 - gRPC-Gateway HTTP/JSON reverse proxies
+- Validation code from proto annotations
 
 ## Next Steps
 
 After installation, you can:
-1. Define your `.proto` files
+1. Define your `.proto` files with validation annotations
 2. Generate Go code using `protoc` with the installed plugins
-3. Implement your gRPC services
+3. Implement your gRPC services with automatic validation
 4. Build REST APIs using gRPC-Gateway
+5. Use protoc-gen-validate style validation in your services
+
+## Validation Setup
+
+To use validation in your proto files, add validation rules using the `validate.rules` extension:
+
+```protobuf
+syntax = "proto3";
+package myservice;
+
+import "validate/validate.proto";
+
+message CreateUserRequest {
+  string name = 1 [(validate.rules).string = {min_len: 2, max_len: 100}];
+  string email = 2 [(validate.rules).string = {pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"}];
+}
+```
+
+This project includes a manual implementation of protoc-gen-validate style validation that works without requiring the plugin installation, providing the same validation capabilities through clean validation functions.

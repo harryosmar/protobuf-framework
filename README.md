@@ -1,6 +1,6 @@
 # Protobuf Go gRPC Server
 
-A gRPC server with HTTP gateway demonstrating Protocol Buffers and gRPC in Go with multiple services.
+A production-ready gRPC server with HTTP gateway demonstrating Protocol Buffers, gRPC, and validation in Go.
 
 ## Features
 
@@ -8,16 +8,22 @@ A gRPC server with HTTP gateway demonstrating Protocol Buffers and gRPC in Go wi
   - `HelloService` with `GetHello` RPC method
   - `UserService` with `CreateUser` and `GetUser` RPC methods
 - **HTTP Gateway**: REST API endpoints using grpc-gateway
-- **Protocol Buffers**: Message definitions for Hello and User services
+- **Protocol Buffers**: Message definitions with validation rules
+- **Validation**: protoc-gen-validate style validation with proto annotations
+- **Repository Pattern**: Clean architecture with dependency injection
+- **Production Features**: Metrics, logging, rate limiting, graceful shutdown
 - **Multi-stage Docker build**: Optimized containerization
 
 ## Project Structure
 
 ```
 .
-├── proto/              # Protocol buffer definitions
+├── proto/              # Protocol buffer definitions with validation
 │   ├── hello.proto
 │   └── user.proto
+├── third_party/        # Third-party proto files
+│   └── validate/
+│       └── validate.proto
 ├── gen/                # Generated code from proto files (gitignored)
 │   ├── hello/
 │   │   ├── hello.pb.go
@@ -29,10 +35,28 @@ A gRPC server with HTTP gateway demonstrating Protocol Buffers and gRPC in Go wi
 │       └── user.pb.gw.go
 ├── service/            # Service implementations
 │   ├── HelloService.go
-│   ├── UserService.go
-│   └── service.go
-├── scripts/            # Build scripts
-│   └── generate.sh
+│   └── UserService.go
+├── repository/         # Data access layer
+│   ├── user_repository.go
+│   └── errors.go
+├── validation/         # Validation logic
+│   └── protobuf_validation.go
+├── middleware/         # gRPC middleware
+│   ├── logging.go
+│   ├── metrics.go
+│   ├── ratelimit.go
+│   └── requestid.go
+├── models/             # Database models
+│   └── user.go
+├── database/           # Database configuration
+│   └── database.go
+├── config/             # Configuration management
+│   └── config.go
+├── logger/             # Logging utilities
+│   └── logger.go
+├── handlers/           # HTTP handlers
+│   ├── health.go
+│   └── swagger.go
 ├── main.go             # Main application
 ├── Makefile            # Build automation
 ├── Dockerfile          # Multi-stage Docker build
@@ -50,15 +74,25 @@ Required tools:
 - protoc-gen-go-grpc
 - protoc-gen-grpc-gateway
 - protoc-gen-openapiv2 (for Swagger generation)
+- protoc-gen-validate (for validation generation)
 
 ### Install Dependencies
 
 ```bash
-# Install Swagger Generator
+# Fix Go toolchain version mismatch if needed
+export PATH="/usr/local/go/bin:$PATH"
+
+# Install Protocol Buffer generators
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@latest
 go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
 
-# Install GORM and MySQL driver
-go get -u gorm.io/gorm gorm.io/driver/mysql
+# Install protoc-gen-validate for validation (specific version for compatibility)
+go install github.com/envoyproxy/protoc-gen-validate@v1.0.4
+
+# Install project dependencies
+go mod download
 ```
 
 ## Running the Server
@@ -215,6 +249,92 @@ If you prefer to generate manually:
 ```bash
 make proto
 ```
+
+## Validation
+
+The server uses **protoc-gen-validate** for automatic validation code generation from proto annotations. Validation rules are defined directly in proto files and generate Go validation methods.
+
+### How It Works
+
+1. **Define validation rules in proto files** using `validate.rules` annotations
+2. **protoc-gen-validate generates validation code** automatically 
+3. **Call `req.Validate()`** in service methods to validate requests
+4. **No manual validation code needed** - everything is generated from proto
+
+### Validation Rules
+
+**UserDTO Validation:**
+```protobuf
+message UserDTO {
+  string name = 1 [(validate.rules).string = {min_len: 2, max_len: 100}];
+  string email = 2 [(validate.rules).string = {pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", max_len: 255}];
+}
+```
+
+**CreateUserRequest Validation:**
+```protobuf
+message CreateUserRequest {
+  UserDTO user = 1 [(validate.rules).message = {required: true}];
+}
+```
+
+**GetUserRequest Validation:**
+```protobuf
+message GetUserRequest {
+  int64 id = 1 [(validate.rules).int64 = {gt: 0}];
+}
+```
+
+### Generated Validation Usage
+
+**In Service Methods:**
+```go
+func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
+    // Validation is automatically generated from proto annotations
+    if err := req.Validate(); err != nil {
+        return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+    }
+    // ... rest of service logic
+}
+```
+
+### Validation Examples
+
+**Valid CreateUser Request:**
+```json
+{
+  "user": {
+    "name": "John Doe",
+    "email": "john.doe@example.com"
+  }
+}
+```
+
+**Invalid Requests:**
+```json
+// Name too short (min_len: 2)
+{"user": {"name": "J", "email": "john@example.com"}}
+// Invalid email format (pattern validation)
+{"user": {"name": "John Doe", "email": "invalid-email"}}
+// Invalid user ID (gt: 0)
+{"id": 0}
+```
+
+**Validation Error Response:**
+```json
+{
+  "code": 3,
+  "message": "validation failed: invalid CreateUserRequest.User: embedded message failed validation | caused by: invalid UserDTO.Name: value length must be at least 2 characters"
+}
+```
+
+### Benefits
+
+- **Single Source of Truth**: Validation rules defined in proto files
+- **Automatic Code Generation**: No manual validation code needed
+- **Type Safety**: Generated validation matches proto definitions exactly
+- **Consistent**: Same validation logic across all languages
+- **Maintainable**: Update proto annotations to change validation rules
 
 ## API Documentation
 

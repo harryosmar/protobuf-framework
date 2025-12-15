@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/logger"
@@ -33,9 +32,13 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
 	log := logger.FromContext(ctx)
 	log.Info("UserService.CreateUser called", zap.String("name", req.User.Name), zap.String("email", req.User.Email))
 
-	// Input validation
-	if err := s.validateCreateUserRequest(req); err != nil {
-		return nil, err
+	// Validation will be handled by protoc-gen-validate generated code
+	// Proto validation rules:
+	// - user: [(validate.rules).message = {required: true}]
+	// - name: [(validate.rules).string = {min_len: 2, max_len: 100}]
+	// - email: [(validate.rules).string = {pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", max_len: 255}]
+	if err := req.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
 	}
 
 	// Create user model from DTO
@@ -58,29 +61,16 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
 	}, nil
 }
 
-// validateCreateUserRequest validates the create user request
-func (s *UserServer) validateCreateUserRequest(req *userpb.CreateUserRequest) error {
-	if req.User == nil {
-		return status.Errorf(codes.InvalidArgument, "user data is required")
-	}
-	if strings.TrimSpace(req.User.Name) == "" {
-		return status.Errorf(codes.InvalidArgument, "user name is required")
-	}
-	if strings.TrimSpace(req.User.Email) == "" {
-		return status.Errorf(codes.InvalidArgument, "user email is required")
-	}
-	return nil
-}
-
 // GetUser implements the GetUser RPC method
 func (s *UserServer) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
 	// Get logger with request ID from context
 	log := logger.FromContext(ctx)
 	log.Info("UserService.GetUser called", zap.Int64("user_id", req.Id))
 
-	// Input validation
-	if req.Id <= 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "user ID must be positive")
+	// Validation will be handled by protoc-gen-validate generated code
+	// Proto validation rule: [(validate.rules).int64 = {gt: 0}]
+	if err := req.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
 	}
 
 	// Query database for user using repository
