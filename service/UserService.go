@@ -6,7 +6,6 @@ import (
 
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/logger"
-	"github.com/harryosmar/protobuf-go/models"
 	"github.com/harryosmar/protobuf-go/repository"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -41,23 +40,42 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
 		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
 	}
 
-	// Create user model from DTO
-	user := models.FromProtoDTO(req.User)
+	// Create user entity from DTO using generated GORM model
+	userEntity := &userpb.UserEntity{
+		Name:      req.User.Name,
+		Email:     req.User.Email,
+		CreatedAt: "", // Will be set by database
+		UpdatedAt: "", // Will be set by database
+	}
+
+	// Convert to ORM model for database operations
+	userORM, err := userEntity.ToORM(ctx)
+	if err != nil {
+		log.Error("Failed to convert user entity to ORM", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to process user data")
+	}
 
 	// Save to database using repository
-	if err := s.userRepo.Create(ctx, user); err != nil {
-		log.Error("Failed to create user", zap.String("email", user.Email), zap.Error(err))
+	if err := s.userRepo.Create(ctx, &userORM); err != nil {
+		log.Error("Failed to create user", zap.String("email", userORM.Email), zap.Error(err))
 
 		// Handle repository-specific errors
 		if errors.Is(err, repository.ErrUserEmailExists) {
-			return nil, status.Errorf(codes.AlreadyExists, "user with email %s already exists", user.Email)
+			return nil, status.Errorf(codes.AlreadyExists, "user with email %s already exists", userORM.Email)
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create user")
 	}
 
-	log.Info("UserService.CreateUser created user", zap.Int64("user_id", user.ID))
+	// Convert back to protobuf entity for response
+	createdUser, err := userORM.ToPB(ctx)
+	if err != nil {
+		log.Error("Failed to convert ORM to protobuf", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to process user data")
+	}
+
+	log.Info("UserService.CreateUser created user", zap.Uint32("user_id", userORM.Id))
 	return &userpb.CreateUserResponse{
-		User: user.ToProto(),
+		User: &createdUser,
 	}, nil
 }
 
@@ -74,7 +92,7 @@ func (s *UserServer) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*
 	}
 
 	// Query database for user using repository
-	user, err := s.userRepo.GetByID(ctx, req.Id)
+	userORM, err := s.userRepo.GetByID(ctx, req.Id)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			log.Warn("UserService.GetUser user not found", zap.Int64("user_id", req.Id))
@@ -84,8 +102,15 @@ func (s *UserServer) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*
 		return nil, status.Errorf(codes.Internal, "failed to retrieve user")
 	}
 
+	// Convert ORM to protobuf entity
+	user, err := userORM.ToPB(ctx)
+	if err != nil {
+		log.Error("Failed to convert ORM to protobuf", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to process user data")
+	}
+
 	log.Info("UserService.GetUser found user", zap.String("user_name", user.Name))
 	return &userpb.GetUserResponse{
-		User: user.ToProto(),
+		User: &user,
 	}, nil
 }

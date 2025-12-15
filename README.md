@@ -9,7 +9,8 @@ A production-ready gRPC server with HTTP gateway demonstrating Protocol Buffers,
   - `UserService` with `CreateUser` and `GetUser` RPC methods
 - **HTTP Gateway**: REST API endpoints using grpc-gateway
 - **Protocol Buffers**: Message definitions with validation rules
-- **Validation**: protoc-gen-validate style validation with proto annotations
+- **Validation**: protoc-gen-validate for automatic validation from proto annotations
+- **GORM Models**: protoc-gen-gorm for automatic database model generation
 - **Repository Pattern**: Clean architecture with dependency injection
 - **Production Features**: Metrics, logging, rate limiting, graceful shutdown
 - **Multi-stage Docker build**: Optimized containerization
@@ -22,32 +23,33 @@ A production-ready gRPC server with HTTP gateway demonstrating Protocol Buffers,
 │   ├── hello.proto
 │   └── user.proto
 ├── third_party/        # Third-party proto files
-│   └── validate/
-│       └── validate.proto
+│   ├── validate/
+│   │   └── validate.proto
+│   └── github.com/infobloxopen/protoc-gen-gorm/options/
+│       └── gorm.proto
 ├── gen/                # Generated code from proto files (gitignored)
 │   ├── hello/
 │   │   ├── hello.pb.go
 │   │   ├── hello_grpc.pb.go
-│   │   └── hello.pb.gw.go
+│   │   ├── hello.pb.gw.go
+│   │   └── hello.pb.validate.go
 │   └── user/
 │       ├── user.pb.go
 │       ├── user_grpc.pb.go
-│       └── user.pb.gw.go
+│       ├── user.pb.gw.go
+│       ├── user.pb.validate.go
+│       └── user.pb.gorm.go
 ├── service/            # Service implementations
 │   ├── HelloService.go
 │   └── UserService.go
 ├── repository/         # Data access layer
 │   ├── user_repository.go
 │   └── errors.go
-├── validation/         # Validation logic
-│   └── protobuf_validation.go
 ├── middleware/         # gRPC middleware
 │   ├── logging.go
 │   ├── metrics.go
 │   ├── ratelimit.go
 │   └── requestid.go
-├── models/             # Database models
-│   └── user.go
 ├── database/           # Database configuration
 │   └── database.go
 ├── config/             # Configuration management
@@ -75,6 +77,7 @@ Required tools:
 - protoc-gen-grpc-gateway
 - protoc-gen-openapiv2 (for Swagger generation)
 - protoc-gen-validate (for validation generation)
+- protoc-gen-gorm (for GORM model generation)
 
 ### Install Dependencies
 
@@ -90,6 +93,9 @@ go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
 
 # Install protoc-gen-validate for validation (specific version for compatibility)
 go install github.com/envoyproxy/protoc-gen-validate@v1.0.4
+
+# Install protoc-gen-gorm for GORM model generation
+go install github.com/infobloxopen/protoc-gen-gorm@latest
 
 # Install project dependencies
 go mod download
@@ -250,16 +256,18 @@ If you prefer to generate manually:
 make proto
 ```
 
-## Validation
+## Validation & Database Models
 
-The server uses **protoc-gen-validate** for automatic validation code generation from proto annotations. Validation rules are defined directly in proto files and generate Go validation methods.
+The server uses **protoc-gen-validate** for automatic validation and **protoc-gen-gorm** for automatic GORM model generation from proto annotations. Both validation rules and database schema are defined directly in proto files.
 
 ### How It Works
 
-1. **Define validation rules in proto files** using `validate.rules` annotations
+1. **Define validation rules and GORM annotations in proto files**
 2. **protoc-gen-validate generates validation code** automatically 
-3. **Call `req.Validate()`** in service methods to validate requests
-4. **No manual validation code needed** - everything is generated from proto
+3. **protoc-gen-gorm generates GORM models** automatically
+4. **Call `req.Validate()`** in service methods to validate requests
+5. **Use generated ORM models** with `ToORM()` and `ToPB()` methods
+6. **No manual validation or model code needed** - everything is generated from proto
 
 ### Validation Rules
 
@@ -285,9 +293,27 @@ message GetUserRequest {
 }
 ```
 
-### Generated Validation Usage
+### GORM Model Annotations
 
-**In Service Methods:**
+**UserEntity with GORM Tags:**
+```protobuf
+message UserEntity {
+  option (gorm.opts) = {
+    ormable: true,
+    table: "users"
+  };
+  
+  uint32 id = 1 [(gorm.field).tag = {primary_key: true, auto_increment: true}];
+  string name = 2 [(gorm.field).tag = {not_null: true, size: 100}];
+  string email = 3 [(gorm.field).tag = {unique_index: "email_idx", size: 255}];
+  string created_at = 4 [(gorm.field).tag = {not_null: true}];
+  string updated_at = 5 [(gorm.field).tag = {not_null: true}];
+}
+```
+
+### Generated Code Usage
+
+**Validation in Service Methods:**
 ```go
 func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
     // Validation is automatically generated from proto annotations
@@ -295,6 +321,32 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
         return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
     }
     // ... rest of service logic
+}
+```
+
+**GORM Model Usage:**
+```go
+// Create user entity from DTO
+userEntity := &userpb.UserEntity{
+    Name:  req.User.Name,
+    Email: req.User.Email,
+}
+
+// Convert to ORM model for database operations
+userORM, err := userEntity.ToORM(ctx)
+if err != nil {
+    return nil, status.Errorf(codes.Internal, "failed to process user data")
+}
+
+// Save to database
+if err := s.userRepo.Create(ctx, &userORM); err != nil {
+    return nil, status.Errorf(codes.Internal, "failed to create user")
+}
+
+// Convert back to protobuf for response
+createdUser, err := userORM.ToPB(ctx)
+if err != nil {
+    return nil, status.Errorf(codes.Internal, "failed to process user data")
 }
 ```
 
@@ -330,11 +382,13 @@ func (s *UserServer) CreateUser(ctx context.Context, req *userpb.CreateUserReque
 
 ### Benefits
 
-- **Single Source of Truth**: Validation rules defined in proto files
-- **Automatic Code Generation**: No manual validation code needed
-- **Type Safety**: Generated validation matches proto definitions exactly
-- **Consistent**: Same validation logic across all languages
-- **Maintainable**: Update proto annotations to change validation rules
+- **Single Source of Truth**: Validation rules and database schema defined in proto files
+- **Automatic Code Generation**: No manual validation or model code needed
+- **Type Safety**: Generated validation and models match proto definitions exactly
+- **Consistent**: Same validation and data models across all languages
+- **Maintainable**: Update proto annotations to change validation rules and database schema
+- **Clean Architecture**: Repository pattern with generated GORM models
+- **Seamless Conversion**: `ToORM()` and `ToPB()` methods for easy conversion
 
 ## API Documentation
 

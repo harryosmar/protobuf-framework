@@ -5,15 +5,17 @@ go 1.24.0
 toolchain go1.24.11
 
 require (
-	github.com/envoyproxy/protoc-gen-validate v1.0.4
+	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0
+	github.com/infobloxopen/protoc-gen-gorm v1.1.5
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/prometheus/client_golang v1.23.2
 	go.uber.org/zap v1.27.1
 	golang.org/x/time v0.14.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142
-	google.golang.org/grpc v1.67.0-dev
+	google.golang.org/genproto v0.0.0-20251213004720-97cd9d5aeac2
+	google.golang.org/genproto/googleapis/api v0.0.0-20251124214823-79d6a2a48846
+	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.10
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.1

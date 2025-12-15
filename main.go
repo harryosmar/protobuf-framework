@@ -18,7 +18,6 @@ import (
 	"github.com/harryosmar/protobuf-go/handlers"
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/middleware"
-	"github.com/harryosmar/protobuf-go/models"
 	"github.com/harryosmar/protobuf-go/repository"
 	"github.com/harryosmar/protobuf-go/service"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -50,8 +49,8 @@ func main() {
 		}
 	}()
 
-	// Auto-migrate database schema
-	if err := db.AutoMigrate(&models.User{}); err != nil {
+	// Auto-migrate database schema using generated GORM model
+	if err := db.AutoMigrate(&userpb.UserEntityORM{}); err != nil {
 		baseLogger.Fatal("Failed to migrate database", zap.Error(err))
 	}
 

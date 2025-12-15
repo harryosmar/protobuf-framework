@@ -6,14 +6,20 @@ option go_package = "./gen/user";
 
 import "google/api/annotations.proto";
 import "validate/validate.proto";
+import "github.com/infobloxopen/protoc-gen-gorm/options/gorm.proto";
 
 // UserEntity will generate full CRUD scaffold
 message UserEntity {
-  int64 id = 1;
-  string name = 2;
-  string email = 3;
-  string created_at = 4;
-  string updated_at = 5;
+  option (gorm.opts) = {
+    ormable: true,
+    table: "users"
+  };
+  
+  uint32 id = 1 [(gorm.field).tag = {primary_key: true, auto_increment: true}];
+  string name = 2 [(gorm.field).tag = {not_null: true, size: 100}];
+  string email = 3 [(gorm.field).tag = {unique_index: "email_idx", size: 255}];
+  string created_at = 4 [(gorm.field).tag = {not_null: true}];
+  string updated_at = 5 [(gorm.field).tag = {not_null: true}];
 }
 
 // UserDTO for API requests/responses

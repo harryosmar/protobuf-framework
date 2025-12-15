@@ -94,6 +94,33 @@ export PATH="/usr/local/go/bin:$PATH"
 go install github.com/envoyproxy/protoc-gen-validate@v1.0.4
 ```
 
+### 7. Install protoc-gen-gorm
+
+This plugin generates GORM models from proto GORM annotations:
+
+```bash
+# Install protoc-gen-gorm
+go install github.com/infobloxopen/protoc-gen-gorm@latest
+```
+
+Verify the installation:
+
+```bash
+protoc-gen-gorm --version
+```
+
+### 8. Setup GORM Proto Files
+
+Download the gorm.proto file for protoc-gen-gorm annotations:
+
+```bash
+# Create third_party directory for GORM proto
+mkdir -p third_party/github.com/infobloxopen/protoc-gen-gorm/options
+
+# Download gorm.proto from protoc-gen-gorm repository
+curl -o third_party/github.com/infobloxopen/protoc-gen-gorm/options/gorm.proto https://raw.githubusercontent.com/infobloxopen/protoc-gen-gorm/v1.1.5/proto/options/gorm.proto
+```
+
 Verify the installation:
 
 ```bash
@@ -122,7 +149,7 @@ If you encounter errors like "compile: version does not match go tool version", 
    source ~/.zshrc
    ```
 
-### 7. Setup Validation Proto Files
+### 9. Setup Validation Proto Files
 
 Download the validate.proto file for protoc-gen-validate annotations:
 
@@ -134,7 +161,7 @@ mkdir -p third_party/validate
 curl -o third_party/validate/validate.proto https://raw.githubusercontent.com/envoyproxy/protoc-gen-validate/v1.0.4/validate/validate.proto
 ```
 
-### 8. Setup Google API Annotations Proto Files
+### 10. Setup Google API Annotations Proto Files
 
 To use `import "google/api/annotations.proto"` in your proto files, set up a shared proto directory in your home folder that can be used across all projects.
 
@@ -179,12 +206,13 @@ When running `protoc` in any project, include the shared proto directory and thi
 # Ensure proper Go toolchain is used
 export PATH="/usr/local/go/bin:$PATH"
 
-# Generate protobuf code with validation
+# Generate protobuf code with validation and GORM models
 protoc -I. -I./third_party -I$HOME/.proto \
   --go_out=. --go_opt=paths=source_relative \
   --go-grpc_out=. --go-grpc_opt=paths=source_relative \
   --grpc-gateway_out=. --grpc-gateway_opt=paths=source_relative \
   --validate_out="lang=go:." \
+  --gorm_out=. \
   your_service.proto
 ```
 
@@ -208,6 +236,7 @@ Current compatible versions:
 - **protoc-gen-grpc-gateway**: v2.27.3
 - **protoc-gen-openapiv2**: v2.27.3
 - **protoc-gen-validate**: v1.0.4
+- **protoc-gen-gorm**: v1.1.5
 
 ## Compatibility
 
@@ -216,17 +245,20 @@ All installed versions are compatible and work together seamlessly for generatin
 - gRPC service implementations
 - gRPC-Gateway HTTP/JSON reverse proxies
 - Validation code from proto annotations
+- GORM database models from proto annotations
 
 ## Next Steps
 
 After installation, you can:
-1. Define your `.proto` files with validation annotations
+1. Define your `.proto` files with validation and GORM annotations
 2. Generate Go code using `protoc` with the installed plugins
-3. Implement your gRPC services with automatic validation
+3. Implement your gRPC services with automatic validation and database models
 4. Build REST APIs using gRPC-Gateway
-5. Use protoc-gen-validate style validation in your services
+5. Use generated GORM models with `ToORM()` and `ToPB()` conversion methods
 
-## Validation Setup
+## Proto Annotations Setup
+
+### Validation Rules
 
 To use validation in your proto files, add validation rules using the `validate.rules` extension:
 
@@ -242,4 +274,52 @@ message CreateUserRequest {
 }
 ```
 
-This project includes a manual implementation of protoc-gen-validate style validation that works without requiring the plugin installation, providing the same validation capabilities through clean validation functions.
+### GORM Model Annotations
+
+To generate GORM models from your proto files, add GORM annotations:
+
+```protobuf
+syntax = "proto3";
+package myservice;
+
+import "github.com/infobloxopen/protoc-gen-gorm/options/gorm.proto";
+
+message UserEntity {
+  option (gorm.opts) = {
+    ormable: true,
+    table: "users"
+  };
+  
+  uint32 id = 1 [(gorm.field).tag = {primary_key: true, auto_increment: true}];
+  string name = 2 [(gorm.field).tag = {not_null: true, size: 100}];
+  string email = 3 [(gorm.field).tag = {unique_index: "email_idx", size: 255}];
+}
+```
+
+### Combined Usage
+
+You can use both validation and GORM annotations together:
+
+```protobuf
+syntax = "proto3";
+package myservice;
+
+import "validate/validate.proto";
+import "github.com/infobloxopen/protoc-gen-gorm/options/gorm.proto";
+
+message UserEntity {
+  option (gorm.opts) = {ormable: true, table: "users"};
+  
+  uint32 id = 1 [(gorm.field).tag = {primary_key: true, auto_increment: true}];
+  string name = 2 [
+    (validate.rules).string = {min_len: 2, max_len: 100},
+    (gorm.field).tag = {not_null: true, size: 100}
+  ];
+  string email = 3 [
+    (validate.rules).string = {pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"},
+    (gorm.field).tag = {unique_index: "email_idx", size: 255}
+  ];
+}
+```
+
+This approach provides both automatic validation and database model generation from a single proto definition.

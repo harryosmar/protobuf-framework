@@ -9,8 +9,9 @@ proto:
 		--go-grpc_out=. --go-grpc_opt=paths=import \
 		--grpc-gateway_out=. --grpc-gateway_opt=paths=import \
 		--validate_out="lang=go:." \
+		--gorm_out=. \
 		proto/*.proto
-	@echo "✓ Proto files generated successfully with validation"
+	@echo "✓ Proto files generated successfully with validation and GORM models"
 
 # Generate Swagger/OpenAPI documentation
 swagger:
