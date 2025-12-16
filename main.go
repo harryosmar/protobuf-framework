@@ -20,6 +20,7 @@ import (
 	"github.com/harryosmar/protobuf-go/middleware"
 	"github.com/harryosmar/protobuf-go/repository"
 	"github.com/harryosmar/protobuf-go/service"
+	"github.com/harryosmar/protobuf-go/usecase"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -55,7 +56,10 @@ func main() {
 	}
 
 	// Initialize repositories
-	userRepo := repository.NewUserRepository(db)
+	userRepo := repository.NewUserRepositoryMySQL(db)
+
+	// Initialize usecases
+	userUsecase := usecase.NewUserUsecase(userRepo)
 
 	baseLogger.Info("Starting server",
 		zap.String("app_name", cfg.AppName),
@@ -75,7 +79,7 @@ func main() {
 	// Start gRPC server in a goroutine
 	grpcDone := make(chan error, 1)
 	go func() {
-		grpcDone <- runGRPCServer(ctx, cfg, baseLogger, userRepo)
+		grpcDone <- runGRPCServer(ctx, cfg, baseLogger, userUsecase)
 	}()
 
 	// Start HTTP gateway server in a goroutine
@@ -114,7 +118,7 @@ func main() {
 	}
 }
 
-func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logger, userRepo repository.UserRepository) error {
+func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logger, userUsecase usecase.UserUsecase) error {
 	lis, err := net.Listen("tcp", cfg.GRPCPort)
 	if err != nil {
 		return err
@@ -163,8 +167,8 @@ func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logg
 		grpc.MaxConcurrentStreams(1000),
 	)
 
-	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServer())
-	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServer(userRepo))
+	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServiceServer())
+	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServiceServer(userUsecase))
 
 	baseLogger.Info("gRPC server listening", zap.String("port", cfg.GRPCPort))
 

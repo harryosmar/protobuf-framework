@@ -9,18 +9,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// HelloServer implements the HelloService
-type HelloServer struct {
+// HelloServiceServer implements the HelloService
+type HelloServiceServer struct {
 	hellopb.UnimplementedHelloServiceServer
 }
 
-// NewHelloServer creates a new HelloServer instance
-func NewHelloServer() *HelloServer {
-	return &HelloServer{}
+// NewHelloServiceServer creates a new HelloServiceServer instance
+func NewHelloServiceServer() *HelloServiceServer {
+	return &HelloServiceServer{}
 }
 
 // GetHello implements the GetHello RPC method
-func (s *HelloServer) GetHello(ctx context.Context, req *hellopb.HelloRequest) (*hellopb.HelloResponse, error) {
+func (s *HelloServiceServer) GetHello(ctx context.Context, req *hellopb.HelloRequest) (*hellopb.HelloResponse, error) {
 	// Get logger with request ID from context
 	log := logger.FromContext(ctx)
 	log.Info("HelloService.GetHello called", zap.String("name", req.GetName()))
