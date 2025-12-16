@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/repository"
@@ -42,22 +43,22 @@ func (u *userUsecase) CreateUser(ctx context.Context, userDTO *userpb.UserDTO) (
 	// Convert to ORM model for database operations
 	userORM, err := userEntity.ToORM(ctx)
 	if err != nil {
-		return nil, ErrInvalidUserData
+		return nil, NewAppError(ErrInvalidUserData, "failed to convert user entity to ORM", err)
 	}
 
 	// Save to database using repository
 	if err := u.userRepo.Create(ctx, &userORM); err != nil {
 		// Handle repository-specific errors and convert to usecase errors
 		if errors.Is(err, repository.ErrUserEmailExists) {
-			return nil, ErrUserEmailExists
+			return nil, NewAppError(ErrUserEmailExists, fmt.Sprintf("user with email %s already exists", userDTO.Email), err)
 		}
-		return nil, ErrUserCreationFailed
+		return nil, NewAppError(ErrUserCreationFailed, "failed to create user in database", err)
 	}
 
 	// Convert back to protobuf entity for response
 	createdUser, err := userORM.ToPB(ctx)
 	if err != nil {
-		return nil, ErrInvalidUserData
+		return nil, NewAppError(ErrInvalidUserData, "failed to convert ORM to protobuf entity", err)
 	}
 
 	return &createdUser, nil
@@ -68,16 +69,16 @@ func (u *userUsecase) GetUserByID(ctx context.Context, id int64) (*userpb.UserEn
 	// Query database for user using repository
 	userORM, err := u.userRepo.GetByID(ctx, id)
 	if err != nil {
-		return nil, ErrUserNotFound
+		return nil, NewAppError(ErrInternalServer, "failed to query user from database", err)
 	}
 	if userORM == nil {
-		return nil, ErrUserNotFound // User not found
+		return nil, NewAppError(ErrUserNotFound, fmt.Sprintf("user with ID %d not found", id), nil)
 	}
 
 	// Convert ORM to protobuf entity
 	user, err := userORM.ToPB(ctx)
 	if err != nil {
-		return nil, ErrInvalidUserData
+		return nil, NewAppError(ErrInvalidUserData, "failed to convert ORM to protobuf entity", err)
 	}
 
 	return &user, nil
@@ -88,16 +89,16 @@ func (u *userUsecase) GetUserByEmail(ctx context.Context, email string) (*userpb
 	// Query database for user using repository
 	userORM, err := u.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		return nil, ErrUserNotFound
+		return nil, NewAppError(ErrInternalServer, "failed to query user from database", err)
 	}
 	if userORM == nil {
-		return nil, ErrUserNotFound // User not found
+		return nil, NewAppError(ErrUserNotFound, fmt.Sprintf("user with email %s not found", email), nil)
 	}
 
 	// Convert ORM to protobuf entity
 	user, err := userORM.ToPB(ctx)
 	if err != nil {
-		return nil, ErrInvalidUserData
+		return nil, NewAppError(ErrInvalidUserData, "failed to convert ORM to protobuf entity", err)
 	}
 
 	return &user, nil
@@ -108,12 +109,12 @@ func (u *userUsecase) UpdateUser(ctx context.Context, user *userpb.UserEntity) e
 	// Convert to ORM model for database operations
 	userORM, err := user.ToORM(ctx)
 	if err != nil {
-		return ErrInvalidUserData
+		return NewAppError(ErrInvalidUserData, "failed to convert user entity to ORM", err)
 	}
 
 	// Update in database using repository
 	if err := u.userRepo.Update(ctx, &userORM); err != nil {
-		return ErrUserUpdateFailed
+		return NewAppError(ErrUserUpdateFailed, "failed to update user in database", err)
 	}
 	return nil
 }
@@ -122,7 +123,7 @@ func (u *userUsecase) UpdateUser(ctx context.Context, user *userpb.UserEntity) e
 func (u *userUsecase) DeleteUser(ctx context.Context, id int64) error {
 	// Delete from database using repository
 	if err := u.userRepo.Delete(ctx, id); err != nil {
-		return ErrUserDeletionFailed
+		return NewAppError(ErrUserDeletionFailed, fmt.Sprintf("failed to delete user with ID %d", id), err)
 	}
 	return nil
 }

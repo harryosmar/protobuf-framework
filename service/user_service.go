@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/logger"
@@ -41,14 +40,11 @@ func (s *UserServiceServer) CreateUser(ctx context.Context, req *userpb.CreateUs
 	if err != nil {
 		log.Error("Failed to create user", zap.String("email", req.User.Email), zap.Error(err))
 
-		// Handle usecase-specific errors and map to gRPC status codes
-		if errors.Is(err, usecase.ErrUserEmailExists) {
-			return nil, status.Errorf(codes.AlreadyExists, "user with email %s already exists", req.User.Email)
+		// Convert structured error to gRPC status
+		if appErr, ok := err.(*usecase.AppError); ok {
+			return nil, appErr.ToGRPCStatus()
 		}
-		if errors.Is(err, usecase.ErrInvalidUserData) {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user data")
-		}
-		return nil, status.Errorf(codes.Internal, "failed to create user")
+		return nil, status.Error(codes.Internal, "failed to create user")
 	}
 
 	log.Info("UserService.CreateUser created user", zap.String("user_name", createdUser.Name))
@@ -74,14 +70,11 @@ func (s *UserServiceServer) GetUser(ctx context.Context, req *userpb.GetUserRequ
 	if err != nil {
 		log.Error("Failed to get user", zap.Int64("user_id", req.Id), zap.Error(err))
 
-		// Handle usecase-specific errors and map to gRPC status codes
-		if errors.Is(err, usecase.ErrUserNotFound) {
-			return nil, status.Errorf(codes.NotFound, "user with ID %d not found", req.Id)
+		// Convert structured error to gRPC status
+		if appErr, ok := err.(*usecase.AppError); ok {
+			return nil, appErr.ToGRPCStatus()
 		}
-		if errors.Is(err, usecase.ErrInvalidUserData) {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user data")
-		}
-		return nil, status.Errorf(codes.Internal, "failed to retrieve user")
+		return nil, status.Error(codes.Internal, "failed to retrieve user")
 	}
 
 	log.Info("UserService.GetUser found user", zap.String("user_name", user.Name))
