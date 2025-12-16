@@ -124,28 +124,12 @@ func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logg
 		return err
 	}
 
-	// Get rate limiting configuration
-	reqPerSec, burstSize, strategy := cfg.GetRateLimitConfig()
-
-	var rateLimitInterceptor grpc.UnaryServerInterceptor
-	if cfg.RateLimitEnabled {
-		if strategy == "per-method" {
-			rateLimitInterceptor = middleware.NewPerMethodRateLimitInterceptor(reqPerSec, burstSize)
-		} else {
-			rateLimitInterceptor = middleware.NewGlobalRateLimitInterceptor(reqPerSec, burstSize)
-		}
-	}
-
 	// Build interceptor chain
 	interceptors := []grpc.UnaryServerInterceptor{
 		middleware.RequestIDInterceptor(baseLogger),
-		middleware.MetricsInterceptor(), // Add metrics collection
+		middleware.MetricsInterceptor(), // Add metrics collection,
 	}
-
-	if cfg.RateLimitEnabled {
-		interceptors = append(interceptors, rateLimitInterceptor)
-	}
-
+	interceptors = append(interceptors, middleware.NewRateLimitInterceptors(cfg)...)
 	interceptors = append(interceptors, middleware.LoggingInterceptor(baseLogger))
 
 	// Production-ready gRPC server with keepalive and limits

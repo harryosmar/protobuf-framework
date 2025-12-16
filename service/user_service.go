@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	error2 "github.com/harryosmar/protobuf-go/error"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/usecase"
@@ -41,7 +42,7 @@ func (s *UserServiceServer) CreateUser(ctx context.Context, req *userpb.CreateUs
 		log.Error("Failed to create user", zap.String("email", req.User.Email), zap.Error(err))
 
 		// Convert structured error to gRPC status
-		if appErr, ok := err.(*usecase.AppError); ok {
+		if appErr, ok := err.(*error2.AppError); ok {
 			return nil, appErr.ToGRPCStatus()
 		}
 		return nil, status.Error(codes.Internal, "failed to create user")
@@ -71,7 +72,7 @@ func (s *UserServiceServer) GetUser(ctx context.Context, req *userpb.GetUserRequ
 		log.Error("Failed to get user", zap.Int64("user_id", req.Id), zap.Error(err))
 
 		// Convert structured error to gRPC status
-		if appErr, ok := err.(*usecase.AppError); ok {
+		if appErr, ok := err.(*error2.AppError); ok {
 			return nil, appErr.ToGRPCStatus()
 		}
 		return nil, status.Error(codes.Internal, "failed to retrieve user")

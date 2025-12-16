@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/harryosmar/protobuf-go/config"
 	"github.com/harryosmar/protobuf-go/logger"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
@@ -136,4 +137,20 @@ func NewPerMethodRateLimitInterceptor(requestsPerSecond, burstSize int) grpc.Una
 	}
 	rateLimiter := NewRateLimiter(config)
 	return RateLimitInterceptor(rateLimiter)
+}
+
+func NewRateLimitInterceptors(cfg *config.Config) []grpc.UnaryServerInterceptor {
+	if !cfg.RateLimitEnabled {
+		return []grpc.UnaryServerInterceptor{}
+	}
+
+	if cfg.RateLimitStrategy == "per-method" {
+		return []grpc.UnaryServerInterceptor{
+			NewPerMethodRateLimitInterceptor(cfg.RateLimitRequestsPerSec, cfg.RateLimitBurstSize),
+		}
+	}
+
+	return []grpc.UnaryServerInterceptor{
+		NewGlobalRateLimitInterceptor(cfg.RateLimitRequestsPerSec, cfg.RateLimitBurstSize),
+	}
 }
