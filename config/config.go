@@ -14,10 +14,14 @@ type Config struct {
 	HTTPPort string `envconfig:"HTTP_PORT" default:":8080"`
 
 	// Database configuration
-	DatabaseURL     string `envconfig:"DATABASE_URL" default:"root:password@tcp(localhost:3306)/protobuf_go?charset=utf8mb4&parseTime=True&loc=Local"`
-	DatabaseMaxIdle int    `envconfig:"DATABASE_MAX_IDLE" default:"10"`
-	DatabaseMaxOpen int    `envconfig:"DATABASE_MAX_OPEN" default:"100"`
-	DatabaseMaxLife int    `envconfig:"DATABASE_MAX_LIFE" default:"3600"` // seconds
+	DatabaseURL            string `envconfig:"DATABASE_URL" default:"root:password@tcp(localhost:3306)/protobuf_go?charset=utf8mb4&parseTime=True&loc=Local"`
+	DatabaseMaxIdle        int    `envconfig:"DATABASE_MAX_IDLE" default:"10"`
+	DatabaseMaxOpen        int    `envconfig:"DATABASE_MAX_OPEN" default:"100"`
+	DatabaseMaxLife        int    `envconfig:"DATABASE_MAX_LIFE" default:"3600"` // seconds
+	DatabaseMaxRetries     int    `envconfig:"DATABASE_MAX_RETRIES" default:"3"`
+	DatabaseRetryDelay     int    `envconfig:"DATABASE_RETRY_DELAY" default:"1"`      // seconds
+	DatabaseConnectTimeout int    `envconfig:"DATABASE_CONNECT_TIMEOUT" default:"10"` // seconds
+	DatabaseQueryTimeout   int    `envconfig:"DATABASE_QUERY_TIMEOUT" default:"30"`   // seconds
 
 	// Rate limiting configuration
 	RateLimitEnabled        bool   `envconfig:"RATE_LIMIT_ENABLED" default:"true"`

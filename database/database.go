@@ -1,7 +1,9 @@
 package database
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/harryosmar/protobuf-go/config"
@@ -11,8 +13,16 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NewDatabase creates and returns a new database connection with connection pooling
+// NewDatabase creates and returns a new database connection with connection pooling and retry logic
 func NewDatabase(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.DatabaseConnectTimeout)*time.Second)
+	defer cancel()
+
+	return NewDatabaseWithContext(ctx, cfg, zapLogger)
+}
+
+// NewDatabaseWithContext creates a database connection with context support and retry logic
+func NewDatabaseWithContext(ctx context.Context, cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 	// Configure GORM logger to use Zap
 	gormLogger := logger.New(
 		&GormZapWriter{logger: zapLogger},
@@ -24,12 +34,63 @@ func NewDatabase(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
 		},
 	)
 
-	// Open database connection
-	db, err := gorm.Open(mysql.Open(cfg.DatabaseURL), &gorm.Config{
-		Logger: gormLogger,
-	})
+	// Open database connection with retry logic
+	var db *gorm.DB
+	var err error
+
+	for attempt := 1; attempt <= cfg.DatabaseMaxRetries; attempt++ {
+		// Check if context is cancelled
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("database connection cancelled: %w", ctx.Err())
+		default:
+		}
+
+		zapLogger.Info("Attempting database connection",
+			zap.Int("attempt", attempt),
+			zap.Int("max_retries", cfg.DatabaseMaxRetries),
+		)
+
+		db, err = gorm.Open(mysql.Open(cfg.DatabaseURL), &gorm.Config{
+			Logger: gormLogger,
+		})
+
+		if err == nil {
+			// Connection successful, test it
+			sqlDB, dbErr := db.DB()
+			if dbErr == nil {
+				pingErr := sqlDB.Ping()
+				if pingErr == nil {
+					break // Success
+				}
+				err = pingErr
+			} else {
+				err = dbErr
+			}
+		}
+
+		// Connection failed
+		if attempt < cfg.DatabaseMaxRetries {
+			// Calculate exponential backoff delay
+			delay := time.Duration(cfg.DatabaseRetryDelay) * time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+			zapLogger.Warn("Database connection failed, retrying",
+				zap.Error(err),
+				zap.Int("attempt", attempt),
+				zap.Duration("retry_in", delay),
+			)
+
+			// Wait with context awareness
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("database connection cancelled during retry: %w", ctx.Err())
+			case <-time.After(delay):
+				// Continue to next attempt
+			}
+		}
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", cfg.DatabaseMaxRetries, err)
 	}
 
 	// Get underlying sql.DB to configure connection pool
