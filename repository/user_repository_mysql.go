@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	appErrors "github.com/harryosmar/protobuf-go/error"
 
 	"github.com/go-sql-driver/mysql"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
@@ -27,7 +28,7 @@ func (r *userRepositoryMySQL) Create(ctx context.Context, user *userpb.UserEntit
 		// Check for MySQL duplicate entry error (Error 1062)
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-			return ErrUserEmailExists
+			return appErrors.ErrUserEmailExists
 		}
 		return err
 	}

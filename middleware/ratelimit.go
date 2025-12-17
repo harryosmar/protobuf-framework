@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	error2 "github.com/harryosmar/protobuf-go/error"
 	"sync"
 
 	"github.com/harryosmar/protobuf-go/config"
@@ -9,8 +10,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // RateLimitConfig holds rate limiting configuration
@@ -107,7 +106,7 @@ func RateLimitInterceptor(rateLimiter *RateLimiter) grpc.UnaryServerInterceptor 
 			RecordRateLimitExceeded(info.FullMethod, key)
 
 			// Return rate limit exceeded error
-			return nil, status.Errorf(codes.ResourceExhausted,
+			return nil, error2.ErrResourceExhausted.WithMessage(
 				"Rate limit exceeded. Maximum %d requests per second allowed.",
 				rateLimiter.config.RequestsPerSecond)
 		}

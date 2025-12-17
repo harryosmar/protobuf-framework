@@ -24,6 +24,18 @@ type Config struct {
 	RateLimitRequestsPerSec int    `envconfig:"RATE_LIMIT_REQUESTS_PER_SEC" default:"100"`
 	RateLimitBurstSize      int    `envconfig:"RATE_LIMIT_BURST_SIZE" default:"200"`
 	RateLimitStrategy       string `envconfig:"RATE_LIMIT_STRATEGY" default:"global"` // global, per-method
+
+	// gRPC server configuration
+	GRPCMaxConnectionIdle     int  `envconfig:"GRPC_MAX_CONNECTION_IDLE" default:"15"`     // seconds
+	GRPCMaxConnectionAge      int  `envconfig:"GRPC_MAX_CONNECTION_AGE" default:"30"`      // seconds
+	GRPCMaxConnectionAgeGrace int  `envconfig:"GRPC_MAX_CONNECTION_AGE_GRACE" default:"5"` // seconds
+	GRPCKeepaliveTime         int  `envconfig:"GRPC_KEEPALIVE_TIME" default:"5"`           // seconds
+	GRPCKeepaliveTimeout      int  `envconfig:"GRPC_KEEPALIVE_TIMEOUT" default:"1"`        // seconds
+	GRPCKeepaliveMinTime      int  `envconfig:"GRPC_KEEPALIVE_MIN_TIME" default:"5"`       // seconds
+	GRPCPermitWithoutStream   bool `envconfig:"GRPC_PERMIT_WITHOUT_STREAM" default:"false"`
+	GRPCMaxRecvMsgSize        int  `envconfig:"GRPC_MAX_RECV_MSG_SIZE" default:"4194304"` // 4MB in bytes
+	GRPCMaxSendMsgSize        int  `envconfig:"GRPC_MAX_SEND_MSG_SIZE" default:"4194304"` // 4MB in bytes
+	GRPCMaxConcurrentStreams  int  `envconfig:"GRPC_MAX_CONCURRENT_STREAMS" default:"1000"`
 }
 
 // Get loads configuration from environment variables
@@ -32,9 +44,4 @@ func Get() *Config {
 	envconfig.MustProcess("", &cfg)
 
 	return &cfg
-}
-
-// GetRateLimitConfig returns rate limiting configuration
-func (c *Config) GetRateLimitConfig() (requestsPerSec, burstSize int, strategy string) {
-	return c.RateLimitRequestsPerSec, c.RateLimitBurstSize, c.RateLimitStrategy
 }

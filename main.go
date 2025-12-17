@@ -131,24 +131,25 @@ func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logg
 	}
 	interceptors = append(interceptors, middleware.NewRateLimitInterceptors(cfg)...)
 	interceptors = append(interceptors, middleware.LoggingInterceptor(baseLogger))
+	interceptors = append(interceptors, middleware.ErrorConversionInterceptor()) // Automatic error conversion
 
 	// Production-ready gRPC server with keepalive and limits
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(interceptors...),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle:     15 * time.Second,
-			MaxConnectionAge:      30 * time.Second,
-			MaxConnectionAgeGrace: 5 * time.Second,
-			Time:                  5 * time.Second,
-			Timeout:               1 * time.Second,
+			MaxConnectionIdle:     time.Duration(cfg.GRPCMaxConnectionIdle) * time.Second,
+			MaxConnectionAge:      time.Duration(cfg.GRPCMaxConnectionAge) * time.Second,
+			MaxConnectionAgeGrace: time.Duration(cfg.GRPCMaxConnectionAgeGrace) * time.Second,
+			Time:                  time.Duration(cfg.GRPCKeepaliveTime) * time.Second,
+			Timeout:               time.Duration(cfg.GRPCKeepaliveTimeout) * time.Second,
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             5 * time.Second,
-			PermitWithoutStream: false,
+			MinTime:             time.Duration(cfg.GRPCKeepaliveMinTime) * time.Second,
+			PermitWithoutStream: cfg.GRPCPermitWithoutStream,
 		}),
-		grpc.MaxRecvMsgSize(4*1024*1024), // 4MB
-		grpc.MaxSendMsgSize(4*1024*1024), // 4MB
-		grpc.MaxConcurrentStreams(1000),
+		grpc.MaxRecvMsgSize(cfg.GRPCMaxRecvMsgSize),
+		grpc.MaxSendMsgSize(cfg.GRPCMaxSendMsgSize),
+		grpc.MaxConcurrentStreams(uint32(cfg.GRPCMaxConcurrentStreams)),
 	)
 
 	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServiceServer())

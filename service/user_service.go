@@ -8,8 +8,6 @@ import (
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/usecase"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // UserServiceServer implements the UserService with usecase pattern
@@ -33,19 +31,15 @@ func (s *UserServiceServer) CreateUser(ctx context.Context, req *userpb.CreateUs
 
 	// Validation will be handled by protoc-gen-validate generated code
 	if err := req.Validate(); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+		return nil, error2.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
 	// Call usecase to handle business logic
 	createdUser, err := s.userUsecase.CreateUser(ctx, req.User)
 	if err != nil {
 		log.Error("Failed to create user", zap.String("email", req.User.Email), zap.Error(err))
-
-		// Convert structured error to gRPC status
-		if appErr, ok := err.(*error2.AppError); ok {
-			return nil, appErr.ToGRPCStatus()
-		}
-		return nil, status.Error(codes.Internal, "failed to create user")
+		// Error conversion handled automatically by ErrorConversionInterceptor
+		return nil, err
 	}
 
 	log.Info("UserService.CreateUser created user", zap.String("user_name", createdUser.Name))
@@ -63,19 +57,15 @@ func (s *UserServiceServer) GetUser(ctx context.Context, req *userpb.GetUserRequ
 	// Validation will be handled by protoc-gen-validate generated code
 	// Proto validation rule: [(validate.rules).int64 = {gt: 0}]
 	if err := req.Validate(); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+		return nil, error2.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
 	// Call usecase to handle business logic
 	user, err := s.userUsecase.GetUserByID(ctx, req.Id)
 	if err != nil {
 		log.Error("Failed to get user", zap.Int64("user_id", req.Id), zap.Error(err))
-
-		// Convert structured error to gRPC status
-		if appErr, ok := err.(*error2.AppError); ok {
-			return nil, appErr.ToGRPCStatus()
-		}
-		return nil, status.Error(codes.Internal, "failed to retrieve user")
+		// Error conversion handled automatically by ErrorConversionInterceptor
+		return nil, err
 	}
 
 	log.Info("UserService.GetUser found user", zap.String("user_name", user.Name))
