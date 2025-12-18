@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package user;
 
-option go_package = "./gen/user";
+option go_package = "github.com/harryosmar/protobuf-go/gen/user";
 
 import "google/api/annotations.proto";
 import "validate/validate.proto";

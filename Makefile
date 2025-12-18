@@ -7,6 +7,7 @@ proto:
 	protoc -I./proto -I./third_party -I$$HOME/.proto \
 		--go_out=. --go_opt=paths=import \
 		--go-grpc_out=. --go-grpc_opt=paths=import \
+# 		--go-scaffold_out=. --go-grpc_opt=paths=import \
 		--grpc-gateway_out=. --grpc-gateway_opt=paths=import \
 		--validate_out="lang=go:." \
 		--gorm_out=. \
