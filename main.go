@@ -15,11 +15,10 @@ import (
 	"github.com/harryosmar/protobuf-go/database"
 	hellopb "github.com/harryosmar/protobuf-go/gen/hello"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
-	"github.com/harryosmar/protobuf-go/handlers"
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/middleware"
 	"github.com/harryosmar/protobuf-go/repository"
-	"github.com/harryosmar/protobuf-go/service"
+	"github.com/harryosmar/protobuf-go/server"
 	"github.com/harryosmar/protobuf-go/usecase"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -56,7 +55,7 @@ func main() {
 	}
 
 	// Initialize repositories
-	userRepo := repository.NewUserRepositoryMySQL(db)
+	userRepo := repository.NewUserServiceRepositoryMySQL(db)
 
 	// Initialize usecases
 	userUsecase := usecase.NewUserUsecase(userRepo)
@@ -152,8 +151,8 @@ func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logg
 		grpc.MaxConcurrentStreams(uint32(cfg.GRPCMaxConcurrentStreams)),
 	)
 
-	hellopb.RegisterHelloServiceServer(grpcServer, service.NewHelloServiceServer())
-	userpb.RegisterUserServiceServer(grpcServer, service.NewUserServiceServer(userUsecase))
+	hellopb.RegisterHelloServiceServer(grpcServer, server.NewHelloServiceServer())
+	userpb.RegisterUserServiceServer(grpcServer, server.NewUserServiceServer(userUsecase))
 
 	baseLogger.Info("gRPC server listening", zap.String("port", cfg.GRPCPort))
 
@@ -192,11 +191,11 @@ func runHTTPGateway(cfg *config.Config, baseLogger *zap.Logger) error {
 	httpMux.Handle("/", mux)
 
 	// Register health endpoint
-	httpMux.HandleFunc("/health", handlers.HealthHandler(cfg))
+	httpMux.HandleFunc("/health", server.HealthHandler(cfg))
 
 	// Register Swagger endpoints
-	httpMux.HandleFunc("/docs", handlers.SwaggerUIHandler())
-	httpMux.HandleFunc("/docs/swagger.json", handlers.SwaggerHandler())
+	httpMux.HandleFunc("/docs", server.SwaggerUIHandler())
+	httpMux.HandleFunc("/docs/swagger.json", server.SwaggerHandler())
 
 	// Register Prometheus metrics endpoint
 	httpMux.Handle("/metrics", promhttp.Handler())

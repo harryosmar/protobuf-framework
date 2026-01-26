@@ -19,11 +19,11 @@ type UserUsecase interface {
 
 // userUsecase implements UserUsecase interface
 type userUsecase struct {
-	userRepo repository.UserRepository
+	userRepo repository.UserServiceRepository
 }
 
 // NewUserUsecase creates a new user usecase instance
-func NewUserUsecase(userRepo repository.UserRepository) UserUsecase {
+func NewUserUsecase(userRepo repository.UserServiceRepository) UserUsecase {
 	return &userUsecase{
 		userRepo: userRepo,
 	}

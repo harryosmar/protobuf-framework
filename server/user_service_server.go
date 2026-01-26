@@ -1,9 +1,9 @@
-package service
+package server
 
 import (
 	"context"
 
-	error2 "github.com/harryosmar/protobuf-go/error"
+	appError "github.com/harryosmar/protobuf-go/error"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/logger"
 	"github.com/harryosmar/protobuf-go/usecase"
@@ -25,24 +25,21 @@ func NewUserServiceServer(userUsecase usecase.UserUsecase) *UserServiceServer {
 
 // CreateUser implements the CreateUser RPC method
 func (s *UserServiceServer) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
-	// Get logger with request ID from context
-	log := logger.FromContext(ctx)
+	var (
+		err error
+		log = logger.FromContext(ctx)
+	)
 	log.Info("UserService.CreateUser called", zap.String("name", req.User.Name), zap.String("email", req.User.Email))
 
-	// Validation will be handled by protoc-gen-validate generated code
-	if err := req.Validate(); err != nil {
-		return nil, error2.ErrInvalidArgument.WithMessage("validation failed: %v", err)
+	if err = req.Validate(); err != nil {
+		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	// Call usecase to handle business logic
 	createdUser, err := s.userUsecase.CreateUser(ctx, req.User)
 	if err != nil {
-		log.Error("Failed to create user", zap.String("email", req.User.Email), zap.Error(err))
-		// Error conversion handled automatically by ErrorConversionInterceptor
 		return nil, err
 	}
 
-	log.Info("UserService.CreateUser created user", zap.String("user_name", createdUser.Name))
 	return &userpb.CreateUserResponse{
 		User: createdUser,
 	}, nil
@@ -57,7 +54,7 @@ func (s *UserServiceServer) GetUser(ctx context.Context, req *userpb.GetUserRequ
 	// Validation will be handled by protoc-gen-validate generated code
 	// Proto validation rule: [(validate.rules).int64 = {gt: 0}]
 	if err := req.Validate(); err != nil {
-		return nil, error2.ErrInvalidArgument.WithMessage("validation failed: %v", err)
+		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
 	// Call usecase to handle business logic

@@ -8,13 +8,13 @@ import "google/api/annotations.proto";
 import "validate/validate.proto";
 import "github.com/infobloxopen/protoc-gen-gorm/options/gorm.proto";
 
-// UserEntity will generate full CRUD scaffold
+
 message UserEntity {
   option (gorm.opts) = {
     ormable: true,
     table: "users"
   };
-  
+
   uint32 id = 1 [(gorm.field).tag = {primary_key: true, auto_increment: true}];
   string name = 2 [(gorm.field).tag = {not_null: true, size: 100}];
   string email = 3 [(gorm.field).tag = {unique_index: "email_idx", size: 255}];
@@ -22,47 +22,88 @@ message UserEntity {
   string updated_at = 5 [(gorm.field).tag = {not_null: true}];
 }
 
-// UserDTO for API requests/responses
-message UserDTO {
+
+message CreateUserRequestDTO {
   string name = 1 [(validate.rules).string = {min_len: 2, max_len: 100}];
   string email = 2 [(validate.rules).string = {pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", max_len: 255}];
 }
 
-// CreateUserRequest
-message CreateUserRequest {
-  UserDTO user = 1 [(validate.rules).message = {required: true}];
+
+message CreateUserResponseDTO {
+  uint32 id = 1;
 }
 
-// CreateUserResponse
-message CreateUserResponse {
-  UserEntity user = 1;
-}
 
-// GetUserRequest
-message GetUserRequest {
+message GetUserRequestDTO {
   int64 id = 1 [(validate.rules).int64 = {gt: 0}];
 }
 
-// GetUserResponse
-message GetUserResponse {
-  UserEntity user = 1;
+
+message GetUserResponseDTO {
+  uint32 id = 1;
+  string name = 2;
+  string email = 3;
+  string created_at = 4;
+  string updated_at = 5;
 }
 
+message DeleteUserRequestDTO {
+  int64 id = 1 [(validate.rules).int64 = {gt: 0}];
+}
 
-// UserService provides user management functionality
+message DeleteUserResponseDTO {
+  bool isSuccess = 1;
+}
+
+message UpdateUserRequestDTO {
+  uint32 id = 1;
+  string name = 2;
+  string email = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message UpdateUserResponseDTO {
+  bool isSuccess = 1;
+}
+
+message ListUserRequestDTO {
+}
+
+message ListUserResponseDTO {
+  repeated GetUserRequestDTO users = 1;
+}
+
 service UserService {
-  // CreateUser creates a new user
-  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+  rpc CreateUser(CreateUserRequestDTO) returns (CreateUserResponseDTO) {
     option (google.api.http) = {
       post: "/v1/users"
       body: "*"
     };
   }
 
-  // GetUser retrieves a user by ID
-  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+  rpc GetUser(GetUserRequestDTO) returns (GetUserResponseDTO) {
     option (google.api.http) = {
       get: "/v1/users/{id}"
+    };
+  }
+
+  rpc DeleteUser(DeleteUserRequestDTO) returns (DeleteUserResponseDTO) {
+    option (google.api.http) = {
+      delete: "/v1/users/{id}"
+    };
+  }
+
+  rpc UpdateUser(UpdateUserRequestDTO) returns (UpdateUserResponseDTO) {
+    option (google.api.http) = {
+      put: "/v1/users/{id}",
+      body: "*"
+    };
+  }
+
+  rpc ListUser(ListUserRequestDTO) returns (ListUserResponseDTO) {
+    option (google.api.http) = {
+      get: "/v1/users"
     };
   }
 }

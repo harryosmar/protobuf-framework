@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+
 	appErrors "github.com/harryosmar/protobuf-go/error"
 
 	"github.com/go-sql-driver/mysql"
@@ -10,20 +11,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// userRepositoryMySQL implements UserRepository interface
-type userRepositoryMySQL struct {
+// userServiceRepositoryMySQL implements UserServiceRepository interface
+type userServiceRepositoryMySQL struct {
 	db *gorm.DB
 }
 
-// NewUserRepositoryMySQL creates a new user repository instance
-func NewUserRepositoryMySQL(db *gorm.DB) UserRepository {
-	return &userRepositoryMySQL{
+// NewUserServiceRepositoryMySQL creates a new user repository instance
+func NewUserServiceRepositoryMySQL(db *gorm.DB) UserServiceRepository {
+	return &userServiceRepositoryMySQL{
 		db: db,
 	}
 }
 
 // Create creates a new user in the database
-func (r *userRepositoryMySQL) Create(ctx context.Context, user *userpb.UserEntityORM) error {
+func (r *userServiceRepositoryMySQL) Create(ctx context.Context, user *userpb.UserEntityORM) error {
 	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
 		// Check for MySQL duplicate entry error (Error 1062)
 		var mysqlErr *mysql.MySQLError
@@ -36,7 +37,7 @@ func (r *userRepositoryMySQL) Create(ctx context.Context, user *userpb.UserEntit
 }
 
 // GetByID retrieves a user by ID
-func (r *userRepositoryMySQL) GetByID(ctx context.Context, id int64) (*userpb.UserEntityORM, error) {
+func (r *userServiceRepositoryMySQL) GetByID(ctx context.Context, id int64) (*userpb.UserEntityORM, error) {
 	var user userpb.UserEntityORM
 	if err := r.db.WithContext(ctx).First(&user, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -48,7 +49,7 @@ func (r *userRepositoryMySQL) GetByID(ctx context.Context, id int64) (*userpb.Us
 }
 
 // GetByEmail retrieves a user by email
-func (r *userRepositoryMySQL) GetByEmail(ctx context.Context, email string) (*userpb.UserEntityORM, error) {
+func (r *userServiceRepositoryMySQL) GetByEmail(ctx context.Context, email string) (*userpb.UserEntityORM, error) {
 	var user userpb.UserEntityORM
 	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -60,12 +61,12 @@ func (r *userRepositoryMySQL) GetByEmail(ctx context.Context, email string) (*us
 }
 
 // Update updates an existing user
-func (r *userRepositoryMySQL) Update(ctx context.Context, user *userpb.UserEntityORM) error {
+func (r *userServiceRepositoryMySQL) Update(ctx context.Context, user *userpb.UserEntityORM) error {
 	return r.db.WithContext(ctx).Save(user).Error
 }
 
 // Delete deletes a user by ID
-func (r *userRepositoryMySQL) Delete(ctx context.Context, id int64) error {
+func (r *userServiceRepositoryMySQL) Delete(ctx context.Context, id int64) error {
 	result := r.db.WithContext(ctx).Delete(&userpb.UserEntityORM{}, id)
 	if result.Error != nil {
 		return result.Error
