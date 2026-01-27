@@ -1,0 +1,24 @@
+package error
+
+import (
+	"net/http"
+
+	"google.golang.org/grpc/codes"
+)
+
+var (
+	userServiceCodeErrMap = map[CodeErr]CodeErrEntity{
+		ErrUserNotFound: {Code: "ERR404P18", Status: http.StatusNotFound, GrpcCode: codes.NotFound, Message: "user not found"},
+	}
+)
+
+func InitUserServiceCode() {
+	for code, entity := range userServiceCodeErrMap {
+		codeErrMap[code] = entity
+	}
+}
+
+// Error code constants
+const (
+	ErrUserNotFound CodeErr = "ErrUserNotFound"
+)

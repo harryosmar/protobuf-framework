@@ -7,8 +7,9 @@ option go_package = "github.com/harryosmar/protobuf-go/gen/user";
 import "google/api/annotations.proto";
 import "validate/validate.proto";
 import "github.com/infobloxopen/protoc-gen-gorm/options/gorm.proto";
+import "google/protobuf/timestamp.proto";
 
-
+// UserEntity will generate full CRUD scaffold
 message UserEntity {
   option (gorm.opts) = {
     ormable: true,
@@ -18,63 +19,93 @@ message UserEntity {
   uint32 id = 1 [(gorm.field).tag = {primary_key: true, auto_increment: true}];
   string name = 2 [(gorm.field).tag = {not_null: true, size: 100}];
   string email = 3 [(gorm.field).tag = {unique_index: "email_idx", size: 255}];
-  string created_at = 4 [(gorm.field).tag = {not_null: true}];
-  string updated_at = 5 [(gorm.field).tag = {not_null: true}];
+  google.protobuf.Timestamp created_at = 4 [(gorm.field).tag = {not_null: true}];
+  google.protobuf.Timestamp updated_at = 5 [(gorm.field).tag = {not_null: true}];
 }
 
-
-message CreateUserRequestDTO {
+// UserDTO for API requests/responses
+message UserDTO {
   string name = 1 [(validate.rules).string = {min_len: 2, max_len: 100}];
-  string email = 2 [(validate.rules).string = {pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", max_len: 255}];
+  string email = 2 [(validate.rules).string = {email: true, max_len: 255}];
+  uint32 id = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
 }
 
+// CreateUserRequestDTO
+message CreateUserRequestDTO {
+  UserDTO user = 1 [(validate.rules).message = {required: true}];
+}
 
+// CreateUserResponseDTO
 message CreateUserResponseDTO {
-  uint32 id = 1;
+  UserDTO user = 1;
 }
 
-
+// GetUserRequestDTO
 message GetUserRequestDTO {
-  int64 id = 1 [(validate.rules).int64 = {gt: 0}];
+  uint32 id = 1 [(validate.rules).uint32 = {gt: 0}];
 }
 
-
-message GetUserResponseDTO {
-  uint32 id = 1;
-  string name = 2;
-  string email = 3;
-  string created_at = 4;
-  string updated_at = 5;
+// GetUserResponse
+message GetUserResponse {
+  UserDTO user = 1;
 }
 
+// DeleteUserRequestDTO
 message DeleteUserRequestDTO {
-  int64 id = 1 [(validate.rules).int64 = {gt: 0}];
+  uint32 id = 1 [(validate.rules).uint32 = {gt: 0}];
 }
 
+// DeleteUserResponseDTO
 message DeleteUserResponseDTO {
-  bool isSuccess = 1;
 }
 
+// UpdateUserRequestDTO
 message UpdateUserRequestDTO {
-  uint32 id = 1;
-  string name = 2;
-  string email = 3;
-  string created_at = 4;
-  string updated_at = 5;
+  UserDTO user = 1 [(validate.rules).message = {required: true}];
 }
 
+// UpdateUserResponseDTO
 message UpdateUserResponseDTO {
-  bool isSuccess = 1;
+  UserDTO user = 1;
 }
 
-message ListUserRequestDTO {
+// Order specifies sorting for list endpoints
+message Sort {
+  string field = 1 [(validate.rules).string = {in: ["id", "name", "email", "created_at", "updated_at"]}];
+  string direction = 2 [(validate.rules).string = {in: ["asc", "desc"]}];
 }
 
-message ListUserResponseDTO {
-  repeated GetUserRequestDTO users = 1;
+// ListUsersRequestDTO
+message ListUsersRequestDTO {
+  PaginationRequest pagination = 1 [(validate.rules).message = {required: true}];
+  string query = 2;
+  Sort sort = 3;
 }
 
+// ListUsersResponseDTO
+message ListUsersResponseDTO {
+  repeated UserDTO users = 1;
+  PaginationResponse pagination = 2;
+}
+
+// PaginationRequest controls page/limit for list endpoints
+message PaginationRequest {
+  int32 page = 1 [(validate.rules).int32 = {gt: 0}];
+  int32 limit = 2 [(validate.rules).int32 = {gt: 0, lte: 100}];
+}
+
+// PaginationResponse returns paging metadata
+message PaginationResponse {
+  int64 total = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+// UserService provides user management functionality
 service UserService {
+  // CreateUser creates a new user
   rpc CreateUser(CreateUserRequestDTO) returns (CreateUserResponseDTO) {
     option (google.api.http) = {
       post: "/v1/users"
@@ -82,26 +113,30 @@ service UserService {
     };
   }
 
-  rpc GetUser(GetUserRequestDTO) returns (GetUserResponseDTO) {
+  // GetUser retrieves a user by ID
+  rpc GetUser(GetUserRequestDTO) returns (GetUserResponse) {
     option (google.api.http) = {
       get: "/v1/users/{id}"
     };
   }
 
+  // DeleteUser deletes a user by ID
   rpc DeleteUser(DeleteUserRequestDTO) returns (DeleteUserResponseDTO) {
     option (google.api.http) = {
       delete: "/v1/users/{id}"
     };
   }
 
+  // UpdateUser updates a user by ID
   rpc UpdateUser(UpdateUserRequestDTO) returns (UpdateUserResponseDTO) {
     option (google.api.http) = {
-      put: "/v1/users/{id}",
+      patch: "/v1/users/{user.id}"
       body: "*"
     };
   }
 
-  rpc ListUser(ListUserRequestDTO) returns (ListUserResponseDTO) {
+  // ListUsers lists users with pagination, optional query, and ordering
+  rpc ListUsers(ListUsersRequestDTO) returns (ListUsersResponseDTO) {
     option (google.api.http) = {
       get: "/v1/users"
     };

@@ -5,10 +5,11 @@ package hello;
 option go_package = "github.com/harryosmar/protobuf-go/gen/hello";
 
 import "google/api/annotations.proto";
+import "validate/validate.proto";
 
 // HelloRequest is the request message for GetHello
 message HelloRequest {
-  string name = 1;
+  string name = 1 [(validate.rules).string = {min_len: 1, max_len: 100}];
 }
 
 // HelloResponse is the response message for GetHello

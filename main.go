@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	appError "github.com/harryosmar/protobuf-go/error"
 	"log"
 	"net"
 	"net/http"
@@ -26,6 +27,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
+
+func init() {
+	appError.InitUserServiceCode()
+}
 
 func main() {
 	// Load configuration
@@ -58,7 +63,7 @@ func main() {
 	userRepo := repository.NewUserServiceRepositoryMySQL(db)
 
 	// Initialize usecases
-	userUsecase := usecase.NewUserUsecase(userRepo)
+	userUsecase := usecase.NewUserServiceUsecase(userRepo)
 
 	baseLogger.Info("Starting server",
 		zap.String("app_name", cfg.AppName),
@@ -117,7 +122,7 @@ func main() {
 	}
 }
 
-func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logger, userUsecase usecase.UserUsecase) error {
+func runGRPCServer(ctx context.Context, cfg *config.Config, baseLogger *zap.Logger, userUsecase usecase.UserServiceUsecase) error {
 	lis, err := net.Listen("tcp", cfg.GRPCPort)
 	if err != nil {
 		return err

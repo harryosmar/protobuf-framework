@@ -2,41 +2,43 @@ package usecase
 
 import (
 	"context"
-
-	error2 "github.com/harryosmar/protobuf-go/error"
+	appError "github.com/harryosmar/protobuf-go/error"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
 	"github.com/harryosmar/protobuf-go/repository"
 )
 
-// UserUsecase defines the interface for user business logic
-type UserUsecase interface {
-	CreateUser(ctx context.Context, userDTO *userpb.UserDTO) (*userpb.UserEntity, error)
-	GetUserByID(ctx context.Context, id int64) (*userpb.UserEntity, error)
-	GetUserByEmail(ctx context.Context, email string) (*userpb.UserEntity, error)
-	UpdateUser(ctx context.Context, user *userpb.UserEntity) error
-	DeleteUser(ctx context.Context, id int64) error
+// UserServiceUsecase defines the interface for user business logic
+type UserServiceUsecase interface {
+	// Methods matching the proto service definition
+	CreateUser(ctx context.Context, req *userpb.CreateUserRequestDTO) (*userpb.CreateUserResponseDTO, error)
+	GetUser(ctx context.Context, req *userpb.GetUserRequestDTO) (*userpb.GetUserResponse, error)
+	UpdateUser(ctx context.Context, req *userpb.UpdateUserRequestDTO) (*userpb.UpdateUserResponseDTO, error)
+	DeleteUser(ctx context.Context, req *userpb.DeleteUserRequestDTO) (*userpb.DeleteUserResponseDTO, error)
+	ListUsers(ctx context.Context, req *userpb.ListUsersRequestDTO) (*userpb.ListUsersResponseDTO, error)
 }
 
-// userUsecase implements UserUsecase interface
-type userUsecase struct {
-	userRepo repository.UserServiceRepository
+// userServiceUsecase implements UserServiceUsecase interface
+type userServiceUsecase struct {
+	userRepo repository.ServiceRepository[userpb.UserEntityORM, uint32]
 }
 
-// NewUserUsecase creates a new user usecase instance
-func NewUserUsecase(userRepo repository.UserServiceRepository) UserUsecase {
-	return &userUsecase{
+// NewUserServiceUsecase creates a new user usecase instance
+func NewUserServiceUsecase(userRepo repository.ServiceRepository[userpb.UserEntityORM, uint32]) UserServiceUsecase {
+	return &userServiceUsecase{
 		userRepo: userRepo,
 	}
 }
 
-// CreateUser handles the business logic for creating a user
-func (u *userUsecase) CreateUser(ctx context.Context, userDTO *userpb.UserDTO) (*userpb.UserEntity, error) {
+// CreateUser implements the CreateUser RPC method from the proto service
+func (u *userServiceUsecase) CreateUser(ctx context.Context, req *userpb.CreateUserRequestDTO) (*userpb.CreateUserResponseDTO, error) {
 	// Create user entity from DTO
+	userDTO := req.User
 	userEntity := &userpb.UserEntity{
+		Id:        userDTO.Id,
 		Name:      userDTO.Name,
 		Email:     userDTO.Email,
-		CreatedAt: "", // Will be set by database
-		UpdatedAt: "", // Will be set by database
+		CreatedAt: userDTO.CreatedAt,
+		UpdatedAt: userDTO.UpdatedAt,
 	}
 
 	// Convert to ORM model for database operations
@@ -46,73 +48,107 @@ func (u *userUsecase) CreateUser(ctx context.Context, userDTO *userpb.UserDTO) (
 	}
 
 	// Save to database using repository
-	if err := u.userRepo.Create(ctx, &userORM); err != nil {
-		return nil, err
-	}
-
-	// Convert back to protobuf entity for response
-	createdUser, err := userORM.ToPB(ctx)
+	newUserORM, err := u.userRepo.Create(ctx, &userORM)
 	if err != nil {
 		return nil, err
 	}
 
-	return &createdUser, nil
+	return &userpb.CreateUserResponseDTO{
+		User: &userpb.UserDTO{
+			Name:  newUserORM.Name,
+			Email: newUserORM.Email,
+			Id:    newUserORM.Id,
+		},
+	}, nil
 }
 
-// GetUserByID handles the business logic for retrieving a user by ID
-func (u *userUsecase) GetUserByID(ctx context.Context, id int64) (*userpb.UserEntity, error) {
+// GetUser implements the GetUser RPC method from the proto service
+func (u *userServiceUsecase) GetUser(ctx context.Context, req *userpb.GetUserRequestDTO) (*userpb.GetUserResponse, error) {
 	// Query database for user using repository
-	userORM, err := u.userRepo.GetByID(ctx, id)
+	userORM, err := u.userRepo.GetById(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
 	if userORM == nil {
-		return nil, error2.ErrUserNotFound.WithMessage("user with ID %d not found", id)
+		return nil, appError.ErrUserNotFound
 	}
 
-	// Convert ORM to protobuf entity
-	user, err := userORM.ToPB(ctx)
+	return &userpb.GetUserResponse{
+		User: u.ormToDTO(userORM),
+	}, nil
+}
+
+func (u *userServiceUsecase) ormToDTO(orm *userpb.UserEntityORM) *userpb.UserDTO {
+	return &userpb.UserDTO{
+		Name:  orm.Name,
+		Email: orm.Email,
+		Id:    orm.Id,
+	}
+}
+
+// DeleteUser implements the DeleteUser RPC method from the proto service
+func (u *userServiceUsecase) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequestDTO) (*userpb.DeleteUserResponseDTO, error) {
+	// Delete from database using repository
+	err := u.userRepo.Delete(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &user, nil
+	return &userpb.DeleteUserResponseDTO{}, nil
 }
 
-// GetUserByEmail handles the business logic for retrieving a user by email
-func (u *userUsecase) GetUserByEmail(ctx context.Context, email string) (*userpb.UserEntity, error) {
-	// Query database for user using repository
-	userORM, err := u.userRepo.GetByEmail(ctx, email)
+// UpdateUser implements the UpdateUser RPC method from the proto service
+func (u *userServiceUsecase) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequestDTO) (*userpb.UpdateUserResponseDTO, error) {
+	// Get existing user first
+	userORM, err := u.userRepo.GetById(ctx, req.User.Id)
 	if err != nil {
 		return nil, err
 	}
 	if userORM == nil {
-		return nil, error2.ErrUserNotFound.WithMessage("user with email %s not found", email)
+		return nil, appError.ErrUserNotFound
 	}
 
-	// Convert ORM to protobuf entity
-	user, err := userORM.ToPB(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &user, nil
-}
-
-// UpdateUser handles the business logic for updating a user
-func (u *userUsecase) UpdateUser(ctx context.Context, user *userpb.UserEntity) error {
-	// Convert to ORM model for database operations
-	userORM, err := user.ToORM(ctx)
-	if err != nil {
-		return err
-	}
+	// Update fields
+	userORM.Name = req.User.Name
+	userORM.Email = req.User.Email
 
 	// Update in database using repository
-	return u.userRepo.Update(ctx, &userORM)
+	if _, err := u.userRepo.Update(ctx, userORM); err != nil {
+		return nil, err
+	}
+
+	return &userpb.UpdateUserResponseDTO{
+		User: req.User,
+	}, nil
 }
 
-// DeleteUser handles the business logic for deleting a user
-func (u *userUsecase) DeleteUser(ctx context.Context, id int64) error {
-	// Delete from database using repository
-	return u.userRepo.Delete(ctx, id)
+func (u *userServiceUsecase) ormToDTOList(ormRecords []userpb.UserEntityORM) []*userpb.UserDTO {
+	var dtoRecords []*userpb.UserDTO
+	for _, record := range ormRecords {
+		dtoRecords = append(dtoRecords, u.ormToDTO(&record))
+	}
+	return dtoRecords
+}
+
+// ListUsers implements the ListUsers RPC method from the proto service
+func (u *userServiceUsecase) ListUsers(ctx context.Context, req *userpb.ListUsersRequestDTO) (*userpb.ListUsersResponseDTO, error) {
+	ormRecords, paginator, err := u.userRepo.GetPerPage(
+		ctx,
+		req.Pagination.Page,
+		req.Pagination.Limit,
+		[]repository.OrderBy{},
+		[]repository.Where{},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &userpb.ListUsersResponseDTO{
+		Users: u.ormToDTOList(ormRecords),
+		Pagination: &userpb.PaginationResponse{
+			Total: paginator.Total,
+			Page:  paginator.Page,
+			Limit: paginator.PerPage,
+		},
+	}, nil
 }

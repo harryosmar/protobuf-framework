@@ -1,16 +1,18 @@
 package repository
 
 import (
-	"context"
-
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
+	"gorm.io/gorm"
 )
 
-// UserServiceRepository defines the interface for user data operations
-type UserServiceRepository interface {
-	Create(ctx context.Context, user *userpb.UserEntityORM) error
-	GetByID(ctx context.Context, id int64) (*userpb.UserEntityORM, error)
-	GetByEmail(ctx context.Context, email string) (*userpb.UserEntityORM, error)
-	Update(ctx context.Context, user *userpb.UserEntityORM) error
-	Delete(ctx context.Context, id int64) error
+// userServiceRepositoryMySQL implements UserServiceRepository interface
+type userServiceRepositoryMySQL struct {
+	*BaseGorm[userpb.UserEntityORM, uint32]
+}
+
+// NewUserServiceRepositoryMySQL creates a new user repository instance
+func NewUserServiceRepositoryMySQL(db *gorm.DB) ServiceRepository[userpb.UserEntityORM, uint32] {
+	return &userServiceRepositoryMySQL{
+		NewBaseGorm[userpb.UserEntityORM, uint32](db),
+	}
 }

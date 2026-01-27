@@ -13,60 +13,108 @@ import (
 // UserServiceServer implements the UserService with usecase pattern
 type UserServiceServer struct {
 	userpb.UnimplementedUserServiceServer
-	userUsecase usecase.UserUsecase
+	userUsecase usecase.UserServiceUsecase
 }
 
 // NewUserServiceServer creates a new UserServiceServer instance
-func NewUserServiceServer(userUsecase usecase.UserUsecase) *UserServiceServer {
+func NewUserServiceServer(userUsecase usecase.UserServiceUsecase) *UserServiceServer {
 	return &UserServiceServer{
 		userUsecase: userUsecase,
 	}
 }
 
 // CreateUser implements the CreateUser RPC method
-func (s *UserServiceServer) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
+func (s *UserServiceServer) CreateUser(ctx context.Context, req *userpb.CreateUserRequestDTO) (*userpb.CreateUserResponseDTO, error) {
 	var (
-		err error
 		log = logger.FromContext(ctx)
+		err error
 	)
+	defer func() {
+		if err != nil {
+			log.Error("UserServiceServer.CreateUser err", zap.Error(err))
+		}
+	}()
 	log.Info("UserService.CreateUser called", zap.String("name", req.User.Name), zap.String("email", req.User.Email))
 
 	if err = req.Validate(); err != nil {
 		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	createdUser, err := s.userUsecase.CreateUser(ctx, req.User)
-	if err != nil {
-		return nil, err
-	}
-
-	return &userpb.CreateUserResponse{
-		User: createdUser,
-	}, nil
+	return s.userUsecase.CreateUser(ctx, req)
 }
 
 // GetUser implements the GetUser RPC method
-func (s *UserServiceServer) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
-	// Get logger with request ID from context
-	log := logger.FromContext(ctx)
-	log.Info("UserService.GetUser called", zap.Int64("user_id", req.Id))
+func (s *UserServiceServer) GetUser(ctx context.Context, req *userpb.GetUserRequestDTO) (*userpb.GetUserResponse, error) {
+	var (
+		log = logger.FromContext(ctx)
+		err error
+	)
+	defer func() {
+		if err != nil {
+			log.Error("UserServiceServer.GetUser err", zap.Error(err))
+		}
+	}()
 
-	// Validation will be handled by protoc-gen-validate generated code
-	// Proto validation rule: [(validate.rules).int64 = {gt: 0}]
+	if err = req.Validate(); err != nil {
+		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
+	}
+
+	return s.userUsecase.GetUser(ctx, req)
+}
+
+// DeleteUser implements the DeleteUser RPC method
+func (s *UserServiceServer) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequestDTO) (*userpb.DeleteUserResponseDTO, error) {
+	var (
+		log = logger.FromContext(ctx)
+		err error
+	)
+	defer func() {
+		if err != nil {
+			log.Error("UserServiceServer.DeleteUser err", zap.Error(err))
+		}
+	}()
+
+	if err = req.Validate(); err != nil {
+		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
+	}
+
+	return s.userUsecase.DeleteUser(ctx, req)
+}
+
+// UpdateUser implements the UpdateUser RPC method
+func (s *UserServiceServer) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequestDTO) (*userpb.UpdateUserResponseDTO, error) {
+	var (
+		log = logger.FromContext(ctx)
+		err error
+	)
+	defer func() {
+		if err != nil {
+			log.Error("UserServiceServer.UpdateUser err", zap.Error(err))
+		}
+	}()
+
 	if err := req.Validate(); err != nil {
 		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	// Call usecase to handle business logic
-	user, err := s.userUsecase.GetUserByID(ctx, req.Id)
-	if err != nil {
-		log.Error("Failed to get user", zap.Int64("user_id", req.Id), zap.Error(err))
-		// Error conversion handled automatically by ErrorConversionInterceptor
-		return nil, err
+	return s.userUsecase.UpdateUser(ctx, req)
+}
+
+// ListUsers implements the ListUsers RPC method
+func (s *UserServiceServer) ListUsers(ctx context.Context, req *userpb.ListUsersRequestDTO) (*userpb.ListUsersResponseDTO, error) {
+	var (
+		log = logger.FromContext(ctx)
+		err error
+	)
+	defer func() {
+		if err != nil {
+			log.Error("UserServiceServer.ListUser err", zap.Error(err))
+		}
+	}()
+
+	if err := req.Validate(); err != nil {
+		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	log.Info("UserService.GetUser found user", zap.String("user_name", user.Name))
-	return &userpb.GetUserResponse{
-		User: user,
-	}, nil
+	return s.userUsecase.ListUsers(ctx, req)
 }
