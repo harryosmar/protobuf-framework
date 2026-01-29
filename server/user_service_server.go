@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	appError "github.com/harryosmar/protobuf-go/error"
 	userpb "github.com/harryosmar/protobuf-go/gen/user"
@@ -10,16 +11,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// UserServiceServer implements the UserService with usecase pattern
+// UserServiceServer implements the UserService with appUsecase pattern
 type UserServiceServer struct {
 	userpb.UnimplementedUserServiceServer
-	userUsecase usecase.UserServiceUsecase
+	userServiceUsecase usecase.UserServiceUsecase
 }
 
 // NewUserServiceServer creates a new UserServiceServer instance
 func NewUserServiceServer(userUsecase usecase.UserServiceUsecase) *UserServiceServer {
 	return &UserServiceServer{
-		userUsecase: userUsecase,
+		userServiceUsecase: userUsecase,
 	}
 }
 
@@ -34,13 +35,13 @@ func (s *UserServiceServer) CreateUser(ctx context.Context, req *userpb.CreateUs
 			log.Error("UserServiceServer.CreateUser err", zap.Error(err))
 		}
 	}()
-	log.Info("UserService.CreateUser called", zap.String("name", req.User.Name), zap.String("email", req.User.Email))
+	log.Info("UserService.CreateUser called", zap.String("req", fmt.Sprintf("%+v", req)))
 
 	if err = req.Validate(); err != nil {
 		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	return s.userUsecase.CreateUser(ctx, req)
+	return s.userServiceUsecase.CreateUser(ctx, req)
 }
 
 // GetUser implements the GetUser RPC method
@@ -54,12 +55,13 @@ func (s *UserServiceServer) GetUser(ctx context.Context, req *userpb.GetUserRequ
 			log.Error("UserServiceServer.GetUser err", zap.Error(err))
 		}
 	}()
+	log.Info("UserService.GetUser called", zap.String("req", fmt.Sprintf("%+v", req)))
 
 	if err = req.Validate(); err != nil {
 		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	return s.userUsecase.GetUser(ctx, req)
+	return s.userServiceUsecase.GetUser(ctx, req)
 }
 
 // DeleteUser implements the DeleteUser RPC method
@@ -73,12 +75,13 @@ func (s *UserServiceServer) DeleteUser(ctx context.Context, req *userpb.DeleteUs
 			log.Error("UserServiceServer.DeleteUser err", zap.Error(err))
 		}
 	}()
+	log.Info("UserService.DeleteUser called", zap.String("req", fmt.Sprintf("%+v", req)))
 
 	if err = req.Validate(); err != nil {
 		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	return s.userUsecase.DeleteUser(ctx, req)
+	return s.userServiceUsecase.DeleteUser(ctx, req)
 }
 
 // UpdateUser implements the UpdateUser RPC method
@@ -92,12 +95,13 @@ func (s *UserServiceServer) UpdateUser(ctx context.Context, req *userpb.UpdateUs
 			log.Error("UserServiceServer.UpdateUser err", zap.Error(err))
 		}
 	}()
+	log.Info("UserService.UpdateUser called", zap.String("req", fmt.Sprintf("%+v", req)))
 
-	if err := req.Validate(); err != nil {
+	if err = req.Validate(); err != nil {
 		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	return s.userUsecase.UpdateUser(ctx, req)
+	return s.userServiceUsecase.UpdateUser(ctx, req)
 }
 
 // ListUsers implements the ListUsers RPC method
@@ -111,10 +115,11 @@ func (s *UserServiceServer) ListUsers(ctx context.Context, req *userpb.ListUsers
 			log.Error("UserServiceServer.ListUser err", zap.Error(err))
 		}
 	}()
+	log.Info("UserService.ListUsers called", zap.String("req", fmt.Sprintf("%+v", req)))
 
-	if err := req.Validate(); err != nil {
+	if err = req.Validate(); err != nil {
 		return nil, appError.ErrInvalidArgument.WithMessage("validation failed: %v", err)
 	}
 
-	return s.userUsecase.ListUsers(ctx, req)
+	return s.userServiceUsecase.ListUsers(ctx, req)
 }

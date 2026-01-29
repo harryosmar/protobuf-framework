@@ -19,36 +19,36 @@ type UserServiceUsecase interface {
 
 // userServiceUsecase implements UserServiceUsecase interface
 type userServiceUsecase struct {
-	userRepo repository.ServiceRepository[userpb.UserEntityORM, uint32]
+	userServiceRepo repository.ServiceRepository[userpb.UserEntityORM, uint32]
 }
 
 // NewUserServiceUsecase creates a new user usecase instance
-func NewUserServiceUsecase(userRepo repository.ServiceRepository[userpb.UserEntityORM, uint32]) UserServiceUsecase {
+func NewUserServiceUsecase(repo repository.ServiceRepository[userpb.UserEntityORM, uint32]) UserServiceUsecase {
 	return &userServiceUsecase{
-		userRepo: userRepo,
+		userServiceRepo: repo,
 	}
 }
 
 // CreateUser implements the CreateUser RPC method from the proto service
 func (u *userServiceUsecase) CreateUser(ctx context.Context, req *userpb.CreateUserRequestDTO) (*userpb.CreateUserResponseDTO, error) {
 	// Create user entity from DTO
-	userDTO := req.User
-	userEntity := &userpb.UserEntity{
-		Id:        userDTO.Id,
-		Name:      userDTO.Name,
-		Email:     userDTO.Email,
-		CreatedAt: userDTO.CreatedAt,
-		UpdatedAt: userDTO.UpdatedAt,
+	dto := req.User
+	entity := &userpb.UserEntity{
+		Id:        dto.Id,
+		Name:      dto.Name,
+		Email:     dto.Email,
+		CreatedAt: dto.CreatedAt,
+		UpdatedAt: dto.UpdatedAt,
 	}
 
 	// Convert to ORM model for database operations
-	userORM, err := userEntity.ToORM(ctx)
+	userORM, err := entity.ToORM(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Save to database using repository
-	newUserORM, err := u.userRepo.Create(ctx, &userORM)
+	newUserORM, err := u.userServiceRepo.Create(ctx, &userORM)
 	if err != nil {
 		return nil, err
 	}
@@ -65,16 +65,16 @@ func (u *userServiceUsecase) CreateUser(ctx context.Context, req *userpb.CreateU
 // GetUser implements the GetUser RPC method from the proto service
 func (u *userServiceUsecase) GetUser(ctx context.Context, req *userpb.GetUserRequestDTO) (*userpb.GetUserResponse, error) {
 	// Query database for user using repository
-	userORM, err := u.userRepo.GetById(ctx, req.Id)
+	orm, err := u.userServiceRepo.GetById(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
-	if userORM == nil {
+	if orm == nil {
 		return nil, appError.ErrUserNotFound
 	}
 
 	return &userpb.GetUserResponse{
-		User: u.ormToDTO(userORM),
+		User: u.ormToDTO(orm),
 	}, nil
 }
 
@@ -88,8 +88,7 @@ func (u *userServiceUsecase) ormToDTO(orm *userpb.UserEntityORM) *userpb.UserDTO
 
 // DeleteUser implements the DeleteUser RPC method from the proto service
 func (u *userServiceUsecase) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequestDTO) (*userpb.DeleteUserResponseDTO, error) {
-	// Delete from database using repository
-	err := u.userRepo.Delete(ctx, req.Id)
+	err := u.userServiceRepo.Delete(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -100,20 +99,20 @@ func (u *userServiceUsecase) DeleteUser(ctx context.Context, req *userpb.DeleteU
 // UpdateUser implements the UpdateUser RPC method from the proto service
 func (u *userServiceUsecase) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequestDTO) (*userpb.UpdateUserResponseDTO, error) {
 	// Get existing user first
-	userORM, err := u.userRepo.GetById(ctx, req.User.Id)
+	orm, err := u.userServiceRepo.GetById(ctx, req.User.Id)
 	if err != nil {
 		return nil, err
 	}
-	if userORM == nil {
+	if orm == nil {
 		return nil, appError.ErrUserNotFound
 	}
 
 	// Update fields
-	userORM.Name = req.User.Name
-	userORM.Email = req.User.Email
+	orm.Name = req.User.Name
+	orm.Email = req.User.Email
 
 	// Update in database using repository
-	if _, err := u.userRepo.Update(ctx, userORM); err != nil {
+	if _, err := u.userServiceRepo.Update(ctx, orm); err != nil {
 		return nil, err
 	}
 
@@ -132,7 +131,7 @@ func (u *userServiceUsecase) ormToDTOList(ormRecords []userpb.UserEntityORM) []*
 
 // ListUsers implements the ListUsers RPC method from the proto service
 func (u *userServiceUsecase) ListUsers(ctx context.Context, req *userpb.ListUsersRequestDTO) (*userpb.ListUsersResponseDTO, error) {
-	ormRecords, paginator, err := u.userRepo.GetPerPage(
+	ormRecords, paginator, err := u.userServiceRepo.GetPerPage(
 		ctx,
 		req.Pagination.Page,
 		req.Pagination.Limit,
